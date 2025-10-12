@@ -4,11 +4,9 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { PayrollHeader } from "@/components/payroll/payroll-header"
 import { EmployeeList } from "@/components/payroll/employee-list"
 import { PayrollSummary } from "@/components/payroll/payroll-summary"
-import { PayrollExamples } from "@/components/payroll/payroll-examples"
 import { SupabaseTest } from "@/components/supabase-test"
 import { SupabaseInstructions } from "@/components/supabase-instructions"
 import { useEmployeesSafe } from "@/hooks/use-employees-safe"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function PayrollPage() {
   const { 
@@ -65,31 +63,15 @@ export default function PayrollPage() {
       <div className="flex flex-col gap-6">
         <PayrollHeader onEmployeeAdd={addEmployee} />
         
-        <Tabs defaultValue="employees" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="employees">Сотрудники</TabsTrigger>
-            <TabsTrigger value="examples">Примеры расчетов</TabsTrigger>
-            <TabsTrigger value="summary">Сводка</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="employees" className="space-y-6">
-            <PayrollSummary employees={employees} />
-            <EmployeeList 
-              employees={employees} 
-              onEmployeeUpdate={updateEmployee}
-              onEmployeeDelete={deleteEmployee}
-              onEmployeeDismiss={dismissEmployee}
-            />
-          </TabsContent>
-          
-          <TabsContent value="examples">
-            <PayrollExamples />
-          </TabsContent>
-          
-          <TabsContent value="summary">
-            <PayrollSummary employees={employees} />
-          </TabsContent>
-        </Tabs>
+        <div className="space-y-6">
+          <PayrollSummary employees={employees} />
+          <EmployeeList 
+            employees={employees} 
+            onEmployeeUpdate={updateEmployee}
+            onEmployeeDelete={deleteEmployee}
+            onEmployeeDismiss={dismissEmployee}
+          />
+        </div>
       </div>
     </DashboardLayout>
   )
