@@ -61,21 +61,8 @@ export default function PayrollPage() {
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isUsingSupabase ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-            <span className="text-sm text-muted-foreground">
-              {isUsingSupabase ? 'Синхронизация с Supabase' : 'Локальный режим'}
-            </span>
-          </div>
-          {supabaseError && (
-            <div className="text-xs text-destructive">
-              Ошибка Supabase: {supabaseError}
-            </div>
-          )}
-        </div>
         <PayrollHeader onEmployeeAdd={addEmployee} />
-        <PayrollSummary />
+        <PayrollSummary employees={employees} />
         <EmployeeList 
           employees={employees} 
           onEmployeeUpdate={updateEmployee}
