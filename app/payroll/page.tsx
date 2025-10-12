@@ -5,7 +5,7 @@ import { PayrollHeader } from "@/components/payroll/payroll-header"
 import { EmployeeList } from "@/components/payroll/employee-list"
 import { PayrollSummary } from "@/components/payroll/payroll-summary"
 import { SupabaseTest } from "@/components/supabase-test"
-import { SupabaseSetup } from "@/components/supabase-setup"
+import { SupabaseInstructions } from "@/components/supabase-instructions"
 import { useEmployeesSafe } from "@/hooks/use-employees-safe"
 
 export default function PayrollPage() {
@@ -49,7 +49,7 @@ export default function PayrollPage() {
           </div>
           
           {isTableNotFound ? (
-            <SupabaseSetup />
+            <SupabaseInstructions />
           ) : (
             <SupabaseTest />
           )}
