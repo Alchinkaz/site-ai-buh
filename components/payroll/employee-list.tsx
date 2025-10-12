@@ -312,6 +312,8 @@ export function EmployeeList({
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
+      </AlertDialog>
+
       {/* Диалог подтверждения возврата на работу */}
       <AlertDialog open={!!rehiringEmployee} onOpenChange={() => setRehiringEmployee(null)}>
         <AlertDialogContent>
