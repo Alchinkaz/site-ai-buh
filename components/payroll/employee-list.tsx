@@ -12,101 +12,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Employee } from "@/hooks/use-employees"
 
-const employees = [
-  {
-    id: 1,
-    name: "Айгуль Нурланова",
-    position: "Главный бухгалтер",
-    salary: "₸ 500,000",
-    email: "aigul@company.kz",
-    phone: "+7 777 123 4567",
-    status: "active",
-    taxes: {
-      ipn: "₸ 50,000",
-      so: "₸ 17,500",
-      opv: "₸ 50,000",
-      osms: "₸ 10,000",
-    },
-  },
-  {
-    id: 2,
-    name: "Ерлан Сапаров",
-    position: "Финансовый директор",
-    salary: "₸ 600,000",
-    email: "erlan@company.kz",
-    phone: "+7 777 234 5678",
-    status: "active",
-    taxes: {
-      ipn: "₸ 60,000",
-      so: "₸ 21,000",
-      opv: "₸ 60,000",
-      osms: "₸ 12,000",
-    },
-  },
-  {
-    id: 3,
-    name: "Динара Касымова",
-    position: "Бухгалтер",
-    salary: "₸ 350,000",
-    email: "dinara@company.kz",
-    phone: "+7 777 345 6789",
-    status: "active",
-    taxes: {
-      ipn: "₸ 35,000",
-      so: "₸ 12,250",
-      opv: "₸ 35,000",
-      osms: "₸ 7,000",
-    },
-  },
-  {
-    id: 4,
-    name: "Асель Токтарова",
-    position: "Помощник бухгалтера",
-    salary: "₸ 280,000",
-    email: "asel@company.kz",
-    phone: "+7 777 456 7890",
-    status: "pending",
-    taxes: {
-      ipn: "₸ 28,000",
-      so: "₸ 9,800",
-      opv: "₸ 28,000",
-      osms: "₸ 5,600",
-    },
-  },
-  {
-    id: 5,
-    name: "Нурлан Абдуллаев",
-    position: "Аудитор",
-    salary: "₸ 450,000",
-    email: "nurlan@company.kz",
-    phone: "+7 777 567 8901",
-    status: "active",
-    taxes: {
-      ipn: "₸ 45,000",
-      so: "₸ 15,750",
-      opv: "₸ 45,000",
-      osms: "₸ 9,000",
-    },
-  },
-  {
-    id: 6,
-    name: "Гульнара Смагулова",
-    position: "Экономист",
-    salary: "₸ 400,000",
-    email: "gulnara@company.kz",
-    phone: "+7 777 678 9012",
-    status: "active",
-    taxes: {
-      ipn: "₸ 40,000",
-      so: "₸ 14,000",
-      opv: "₸ 40,000",
-      osms: "₸ 8,000",
-    },
-  },
-]
+interface EmployeeListProps {
+  employees: Employee[]
+}
 
-export function EmployeeList() {
+export function EmployeeList({ employees }: EmployeeListProps) {
   return (
     <Card className="p-6">
       <h3 className="text-lg font-semibold mb-6">Список сотрудников</h3>
@@ -131,6 +43,16 @@ export function EmployeeList() {
                 <div>
                   <h4 className="font-semibold">{employee.name}</h4>
                   <p className="text-sm text-muted-foreground">{employee.position}</p>
+                  {employee.workSchedule && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      График: {getWorkScheduleLabel(employee.workSchedule)}
+                    </p>
+                  )}
+                  {employee.hireDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Принят: {new Date(employee.hireDate).toLocaleDateString('ru-RU')}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={employee.status === "active" ? "default" : "secondary"}>
@@ -204,4 +126,15 @@ export function EmployeeList() {
       </div>
     </Card>
   )
+}
+
+function getWorkScheduleLabel(schedule: string): string {
+  const scheduleLabels: Record<string, string> = {
+    "full-time": "Полный рабочий день (8 часов)",
+    "part-time": "Неполный рабочий день (4 часа)",
+    "flexible": "Гибкий график",
+    "shift": "Сменный график",
+    "remote": "Удаленная работа",
+  }
+  return scheduleLabels[schedule] || schedule
 }

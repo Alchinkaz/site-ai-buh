@@ -1,9 +1,15 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Plus, Download } from "lucide-react"
+import { Download } from "lucide-react"
+import { AddEmployeeForm } from "./add-employee-form"
+import { NewEmployeeData } from "@/hooks/use-employees"
 
-export function PayrollHeader() {
+interface PayrollHeaderProps {
+  onEmployeeAdd: (employee: NewEmployeeData) => void
+}
+
+export function PayrollHeader({ onEmployeeAdd }: PayrollHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <div>
@@ -15,10 +21,7 @@ export function PayrollHeader() {
           <Download className="w-4 h-4 mr-2" />
           Экспорт
         </Button>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Добавить сотрудника
-        </Button>
+        <AddEmployeeForm onEmployeeAdd={onEmployeeAdd} />
       </div>
     </div>
   )
