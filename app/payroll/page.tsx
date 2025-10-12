@@ -5,6 +5,7 @@ import { PayrollHeader } from "@/components/payroll/payroll-header"
 import { EmployeeList } from "@/components/payroll/employee-list"
 import { PayrollSummary } from "@/components/payroll/payroll-summary"
 import { SupabaseTest } from "@/components/supabase-test"
+import { SupabaseSetup } from "@/components/supabase-setup"
 import { useEmployeesSafe } from "@/hooks/use-employees-safe"
 
 export default function PayrollPage() {
@@ -34,6 +35,11 @@ export default function PayrollPage() {
   }
 
   if (error) {
+    // Проверяем, является ли ошибка связанной с отсутствием таблицы
+    const isTableNotFound = error.includes("Could not find the table") || 
+                           error.includes("relation") || 
+                           error.includes("does not exist")
+    
     return (
       <DashboardLayout>
         <div className="flex flex-col gap-6">
@@ -41,7 +47,12 @@ export default function PayrollPage() {
             <div className="text-destructive text-lg mb-2">Ошибка загрузки</div>
             <p className="text-muted-foreground">{error}</p>
           </div>
-          <SupabaseTest />
+          
+          {isTableNotFound ? (
+            <SupabaseSetup />
+          ) : (
+            <SupabaseTest />
+          )}
         </div>
       </DashboardLayout>
     )
