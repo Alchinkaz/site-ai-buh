@@ -9,9 +9,12 @@ export interface Employee {
   salary: string
   email: string
   phone: string
-  status: "active" | "pending" | "inactive"
+  address?: string
+  socialMedia?: string
+  status: "active" | "pending" | "inactive" | "dismissed"
   workSchedule?: string
   hireDate?: string
+  dismissDate?: string
   taxes: {
     ipn: string
     so: string
@@ -110,9 +113,18 @@ const initialEmployees: Employee[] = [
 
 export interface NewEmployeeData {
   fullName: string
+  position: string
   salary: string
   workSchedule: string
   hireDate: string
+  email: string
+  phone: string
+  address?: string
+  socialMedia?: string
+}
+
+export interface UpdateEmployeeData extends NewEmployeeData {
+  id: number
 }
 
 export function useEmployees() {
@@ -128,10 +140,12 @@ export function useEmployees() {
     const newEmployee: Employee = {
       id: Math.max(...employees.map(e => e.id)) + 1,
       name: newEmployeeData.fullName,
-      position: "Сотрудник", // Можно будет изменить позже
+      position: newEmployeeData.position,
       salary: `₸ ${salaryNumber.toLocaleString()}`,
-      email: `${newEmployeeData.fullName.toLowerCase().replace(/\s+/g, '.')}@company.kz`,
-      phone: "+7 777 000 0000", // Можно будет изменить позже
+      email: newEmployeeData.email,
+      phone: newEmployeeData.phone,
+      address: newEmployeeData.address,
+      socialMedia: newEmployeeData.socialMedia,
       status: "active",
       workSchedule: newEmployeeData.workSchedule,
       hireDate: newEmployeeData.hireDate,
@@ -147,8 +161,58 @@ export function useEmployees() {
     return newEmployee
   }, [employees])
 
+  const updateEmployee = useCallback((updateData: UpdateEmployeeData) => {
+    const salaryNumber = Number(updateData.salary)
+    const ipn = Math.round(salaryNumber * 0.1)
+    const so = Math.round(salaryNumber * 0.035)
+    const opv = Math.round(salaryNumber * 0.1)
+    const osms = Math.round(salaryNumber * 0.02)
+
+    setEmployees(prev => prev.map(employee => 
+      employee.id === updateData.id 
+        ? {
+            ...employee,
+            name: updateData.fullName,
+            position: updateData.position,
+            salary: `₸ ${salaryNumber.toLocaleString()}`,
+            email: updateData.email,
+            phone: updateData.phone,
+            address: updateData.address,
+            socialMedia: updateData.socialMedia,
+            workSchedule: updateData.workSchedule,
+            hireDate: updateData.hireDate,
+            taxes: {
+              ipn: `₸ ${ipn.toLocaleString()}`,
+              so: `₸ ${so.toLocaleString()}`,
+              opv: `₸ ${opv.toLocaleString()}`,
+              osms: `₸ ${osms.toLocaleString()}`,
+            },
+          }
+        : employee
+    ))
+  }, [])
+
+  const deleteEmployee = useCallback((id: number) => {
+    setEmployees(prev => prev.filter(employee => employee.id !== id))
+  }, [])
+
+  const dismissEmployee = useCallback((id: number) => {
+    setEmployees(prev => prev.map(employee => 
+      employee.id === id 
+        ? {
+            ...employee,
+            status: "dismissed" as const,
+            dismissDate: new Date().toISOString().split('T')[0]
+          }
+        : employee
+    ))
+  }, [])
+
   return {
     employees,
     addEmployee,
+    updateEmployee,
+    deleteEmployee,
+    dismissEmployee,
   }
 }

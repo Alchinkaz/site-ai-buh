@@ -7,14 +7,19 @@ import { PayrollSummary } from "@/components/payroll/payroll-summary"
 import { useEmployees } from "@/hooks/use-employees"
 
 export default function PayrollPage() {
-  const { employees, addEmployee } = useEmployees()
+  const { employees, addEmployee, updateEmployee, deleteEmployee, dismissEmployee } = useEmployees()
 
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
         <PayrollHeader onEmployeeAdd={addEmployee} />
         <PayrollSummary />
-        <EmployeeList employees={employees} />
+        <EmployeeList 
+          employees={employees} 
+          onEmployeeUpdate={updateEmployee}
+          onEmployeeDelete={deleteEmployee}
+          onEmployeeDismiss={dismissEmployee}
+        />
       </div>
     </DashboardLayout>
   )

@@ -12,13 +12,63 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Employee } from "@/hooks/use-employees"
+import { Employee, UpdateEmployeeData } from "@/hooks/use-employees"
+import { AddEmployeeForm } from "./add-employee-form"
+import { useState } from "react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface EmployeeListProps {
   employees: Employee[]
+  onEmployeeUpdate?: (employee: UpdateEmployeeData) => void
+  onEmployeeDelete?: (id: number) => void
+  onEmployeeDismiss?: (id: number) => void
 }
 
-export function EmployeeList({ employees }: EmployeeListProps) {
+export function EmployeeList({ 
+  employees, 
+  onEmployeeUpdate, 
+  onEmployeeDelete, 
+  onEmployeeDismiss 
+}: EmployeeListProps) {
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
+  const [dismissingEmployee, setDismissingEmployee] = useState<Employee | null>(null)
+
+  const handleEdit = (employee: Employee) => {
+    setEditingEmployee(employee)
+  }
+
+  const handleDelete = (employee: Employee) => {
+    setDeletingEmployee(employee)
+  }
+
+  const handleDismiss = (employee: Employee) => {
+    setDismissingEmployee(employee)
+  }
+
+  const confirmDelete = () => {
+    if (deletingEmployee) {
+      onEmployeeDelete?.(deletingEmployee.id)
+      setDeletingEmployee(null)
+    }
+  }
+
+  const confirmDismiss = () => {
+    if (dismissingEmployee) {
+      onEmployeeDismiss?.(dismissingEmployee.id)
+      setDismissingEmployee(null)
+    }
+  }
+
   return (
     <Card className="p-6">
       <h3 className="text-lg font-semibold mb-6">Список сотрудников</h3>
@@ -53,10 +103,31 @@ export function EmployeeList({ employees }: EmployeeListProps) {
                       Принят: {new Date(employee.hireDate).toLocaleDateString('ru-RU')}
                     </p>
                   )}
+                  {employee.dismissDate && (
+                    <p className="text-xs text-muted-foreground text-red-600">
+                      Уволен: {new Date(employee.dismissDate).toLocaleDateString('ru-RU')}
+                    </p>
+                  )}
+                  {employee.address && (
+                    <p className="text-xs text-muted-foreground">
+                      Адрес: {employee.address}
+                    </p>
+                  )}
+                  {employee.socialMedia && (
+                    <p className="text-xs text-muted-foreground">
+                      Соцсети: {employee.socialMedia}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={employee.status === "active" ? "default" : "secondary"}>
-                    {employee.status === "active" ? "Активен" : "Ожидает"}
+                  <Badge variant={
+                    employee.status === "active" ? "default" : 
+                    employee.status === "dismissed" ? "destructive" : 
+                    "secondary"
+                  }>
+                    {employee.status === "active" ? "Активен" : 
+                     employee.status === "dismissed" ? "Уволен" : 
+                     "Ожидает"}
                   </Badge>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -65,11 +136,26 @@ export function EmployeeList({ employees }: EmployeeListProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Редактировать</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                        Редактировать
+                      </DropdownMenuItem>
                       <DropdownMenuItem>Начислить зарплату</DropdownMenuItem>
                       <DropdownMenuItem>История выплат</DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">Удалить</DropdownMenuItem>
+                      {employee.status !== "dismissed" && (
+                        <DropdownMenuItem 
+                          onClick={() => handleDismiss(employee)}
+                          className="text-orange-600"
+                        >
+                          Уволить
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem 
+                        onClick={() => handleDelete(employee)}
+                        className="text-destructive"
+                      >
+                        Удалить
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -124,6 +210,51 @@ export function EmployeeList({ employees }: EmployeeListProps) {
           </div>
         ))}
       </div>
+
+      {/* Форма редактирования */}
+      <AddEmployeeForm
+        editingEmployee={editingEmployee}
+        onEmployeeUpdate={onEmployeeUpdate}
+        trigger={<div style={{ display: 'none' }} />}
+      />
+
+      {/* Диалог подтверждения удаления */}
+      <AlertDialog open={!!deletingEmployee} onOpenChange={() => setDeletingEmployee(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить сотрудника?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите удалить сотрудника "{deletingEmployee?.name}"? 
+              Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground">
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Диалог подтверждения увольнения */}
+      <AlertDialog open={!!dismissingEmployee} onOpenChange={() => setDismissingEmployee(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Уволить сотрудника?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите уволить сотрудника "{dismissingEmployee?.name}"? 
+              Статус сотрудника изменится на "Уволен".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDismiss} className="bg-orange-600 text-white">
+              Уволить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }
