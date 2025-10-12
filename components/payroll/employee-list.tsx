@@ -39,17 +39,20 @@ interface EmployeeListProps {
   onEmployeeUpdate?: (employee: UpdateEmployeeData) => void
   onEmployeeDelete?: (id: number) => void
   onEmployeeDismiss?: (id: number) => void
+  onEmployeeRehire?: (id: number) => void
 }
 
 export function EmployeeList({ 
   employees, 
   onEmployeeUpdate, 
   onEmployeeDelete, 
-  onEmployeeDismiss 
+  onEmployeeDismiss,
+  onEmployeeRehire
 }: EmployeeListProps) {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
   const [dismissingEmployee, setDismissingEmployee] = useState<Employee | null>(null)
+  const [rehiringEmployee, setRehiringEmployee] = useState<Employee | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [calculations, setCalculations] = useState<Map<number, PayrollCalculation>>(new Map())
 
@@ -64,6 +67,10 @@ export function EmployeeList({
 
   const handleDismiss = (employee: Employee) => {
     setDismissingEmployee(employee)
+  }
+
+  const handleRehire = (employee: Employee) => {
+    setRehiringEmployee(employee)
   }
 
   const handleCalculate = (employee: Employee) => {
@@ -91,6 +98,13 @@ export function EmployeeList({
     if (dismissingEmployee) {
       onEmployeeDismiss?.(dismissingEmployee.id)
       setDismissingEmployee(null)
+    }
+  }
+
+  const confirmRehire = () => {
+    if (rehiringEmployee) {
+      onEmployeeRehire?.(rehiringEmployee.id)
+      setRehiringEmployee(null)
     }
   }
 
@@ -189,7 +203,14 @@ export function EmployeeList({
                         </DropdownMenuItem>
                         <DropdownMenuItem>История выплат</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        {employee.status !== "dismissed" && (
+                        {employee.status === "dismissed" ? (
+                          <DropdownMenuItem 
+                            onClick={() => handleRehire(employee)}
+                            className="text-green-600"
+                          >
+                            Вернуть на работу
+                          </DropdownMenuItem>
+                        ) : (
                           <DropdownMenuItem 
                             onClick={() => handleDismiss(employee)}
                             className="text-orange-600"
@@ -288,6 +309,23 @@ export function EmployeeList({
             <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDismiss} className="bg-orange-600 text-white">
               Уволить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      {/* Диалог подтверждения возврата на работу */}
+      <AlertDialog open={!!rehiringEmployee} onOpenChange={() => setRehiringEmployee(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вернуть сотрудника на работу?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите вернуть сотрудника "{rehiringEmployee?.name}" на работу? 
+              Статус сотрудника изменится на "Активен".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRehire} className="bg-green-600 text-white">
+              Вернуть на работу
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

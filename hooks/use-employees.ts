@@ -208,11 +208,24 @@ export function useEmployees() {
     ))
   }, [])
 
+  const rehireEmployee = useCallback((id: number) => {
+    setEmployees(prev => prev.map(employee => 
+      employee.id === id 
+        ? {
+            ...employee,
+            status: "active" as const,
+            dismissDate: undefined
+          }
+        : employee
+    ))
+  }, [])
+
   return {
     employees,
     addEmployee,
     updateEmployee,
     deleteEmployee,
     dismissEmployee,
+    rehireEmployee,
   }
 }

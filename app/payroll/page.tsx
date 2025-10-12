@@ -15,6 +15,7 @@ export default function PayrollPage() {
     updateEmployee, 
     deleteEmployee, 
     dismissEmployee, 
+    rehireEmployee,
     loading, 
     error,
     isUsingSupabase,
@@ -70,6 +71,7 @@ export default function PayrollPage() {
             onEmployeeUpdate={updateEmployee}
             onEmployeeDelete={deleteEmployee}
             onEmployeeDismiss={dismissEmployee}
+            onEmployeeRehire={rehireEmployee}
           />
         </div>
       </div>

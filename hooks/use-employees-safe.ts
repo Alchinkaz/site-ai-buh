@@ -345,6 +345,51 @@ export function useEmployeesSafe() {
     }
   }, [isUsingSupabase])
 
+  // Возврат сотрудника на работу
+  const rehireEmployee = useCallback(async (id: number) => {
+    try {
+      setError(null)
+      
+      if (!isUsingSupabase) {
+        // Локальный возврат на работу
+        setEmployees(prev => prev.map(employee => 
+          employee.id === id 
+            ? {
+                ...employee,
+                status: "active" as const,
+                dismissDate: undefined
+              }
+            : employee
+        ))
+        return
+      }
+      
+      // Supabase возврат на работу
+      const { data, error: updateError } = await supabase
+        .from('employees')
+        .update({ 
+          status: 'active',
+          dismiss_date: null
+        })
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (updateError) {
+        throw updateError
+      }
+
+      const updatedEmployee = transformEmployeeFromDB(data)
+      setEmployees(prev => prev.map(employee => 
+        employee.id === id ? updatedEmployee : employee
+      ))
+    } catch (err) {
+      console.error('Error rehiring employee:', err)
+      setError(err instanceof Error ? err.message : 'Ошибка возврата сотрудника на работу')
+      throw err
+    }
+  }, [isUsingSupabase])
+
   // Загружаем сотрудников при монтировании компонента
   useEffect(() => {
     fetchEmployees()
@@ -358,6 +403,7 @@ export function useEmployeesSafe() {
     updateEmployee,
     deleteEmployee,
     dismissEmployee,
+    rehireEmployee,
     refetch: fetchEmployees,
     isUsingSupabase,
     supabaseError: error,
