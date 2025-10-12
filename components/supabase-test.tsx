@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 
@@ -15,6 +14,9 @@ export function SupabaseTest() {
     
     try {
       console.log("Testing Supabase connection...")
+      
+      // Динамический импорт supabase
+      const { supabase } = await import("@/lib/supabase")
       
       // Тест 1: Проверка подключения
       const { data: connectionTest, error: connectionError } = await supabase
@@ -60,6 +62,9 @@ export function SupabaseTest() {
     setTestResult("")
     
     try {
+      // Динамический импорт supabase
+      const { supabase } = await import("@/lib/supabase")
+      
       // Попытка создать простую запись для проверки структуры таблицы
       const { data, error } = await supabase
         .from('employees')

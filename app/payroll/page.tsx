@@ -5,7 +5,7 @@ import { PayrollHeader } from "@/components/payroll/payroll-header"
 import { EmployeeList } from "@/components/payroll/employee-list"
 import { PayrollSummary } from "@/components/payroll/payroll-summary"
 import { SupabaseTest } from "@/components/supabase-test"
-import { useEmployeesSmart } from "@/hooks/use-employees-smart"
+import { useEmployeesSafe } from "@/hooks/use-employees-safe"
 
 export default function PayrollPage() {
   const { 
@@ -18,7 +18,7 @@ export default function PayrollPage() {
     error,
     isUsingSupabase,
     supabaseError
-  } = useEmployeesSmart()
+  } = useEmployeesSafe()
 
   if (loading) {
     return (

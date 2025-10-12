@@ -11,6 +11,14 @@ export function useEmployeesSmart() {
   const supabaseHook = useEmployeesSupabase()
   const fallbackHook = useEmployeesFallback()
 
+  // Обрабатываем ошибки Supabase
+  useEffect(() => {
+    if (useSupabase && supabaseHook.error) {
+      setSupabaseError(supabaseHook.error)
+      setUseSupabase(false)
+    }
+  }, [useSupabase, supabaseHook.error])
+
   // Если Supabase работает, используем его
   if (useSupabase && !supabaseHook.error) {
     return {
@@ -19,14 +27,6 @@ export function useEmployeesSmart() {
       switchToFallback: () => setUseSupabase(false),
       supabaseError: null,
     }
-  }
-
-  // Если есть ошибка Supabase, переключаемся на fallback
-  if (useSupabase && supabaseHook.error) {
-    useEffect(() => {
-      setSupabaseError(supabaseHook.error)
-      setUseSupabase(false)
-    }, [supabaseHook.error])
   }
 
   // Используем fallback
