@@ -40,7 +40,7 @@ const employeeSchema = z.object({
   ),
   workSchedule: z.string().min(1, "График работы обязателен"),
   hireDate: z.string().min(1, "Дата приема обязательна"),
-  email: z.string().email("Некорректный email адрес"),
+  email: z.string().email("Некорректный email адрес").optional().or(z.literal("")),
   phone: z.string().min(1, "Номер телефона обязателен"),
   address: z.string().optional(),
   socialMedia: z.string().optional(),
@@ -61,16 +61,24 @@ interface AddEmployeeFormProps {
   onEmployeeUpdate?: (employee: UpdateEmployeeData) => void
   editingEmployee?: Employee | null
   trigger?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function AddEmployeeForm({ 
   onEmployeeAdd, 
   onEmployeeUpdate, 
   editingEmployee, 
-  trigger 
+  trigger,
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange
 }: AddEmployeeFormProps) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
   const isEditing = !!editingEmployee
+  
+  // Используем внешнее состояние, если оно предоставлено, иначе внутреннее
+  const open = externalOpen !== undefined ? externalOpen : internalOpen
+  const setOpen = externalOnOpenChange || setInternalOpen
 
   const form = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
@@ -237,7 +245,7 @@ export function AddEmployeeForm({
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>Email (необязательно)</FormLabel>
                   <FormControl>
                     <Input 
                       type="email" 

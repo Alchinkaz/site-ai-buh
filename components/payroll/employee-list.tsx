@@ -42,9 +42,11 @@ export function EmployeeList({
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
   const [dismissingEmployee, setDismissingEmployee] = useState<Employee | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee)
+    setIsEditModalOpen(true)
   }
 
   const handleDelete = (employee: Employee) => {
@@ -67,6 +69,11 @@ export function EmployeeList({
       onEmployeeDismiss?.(dismissingEmployee.id)
       setDismissingEmployee(null)
     }
+  }
+
+  const handleEditModalClose = () => {
+    setIsEditModalOpen(false)
+    setEditingEmployee(null)
   }
 
   return (
@@ -214,7 +221,12 @@ export function EmployeeList({
       {/* Форма редактирования */}
       <AddEmployeeForm
         editingEmployee={editingEmployee}
-        onEmployeeUpdate={onEmployeeUpdate}
+        onEmployeeUpdate={(employee) => {
+          onEmployeeUpdate?.(employee)
+          handleEditModalClose()
+        }}
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
         trigger={<div style={{ display: 'none' }} />}
       />
 

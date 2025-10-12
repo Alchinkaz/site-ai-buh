@@ -117,7 +117,7 @@ export interface NewEmployeeData {
   salary: string
   workSchedule: string
   hireDate: string
-  email: string
+  email?: string
   phone: string
   address?: string
   socialMedia?: string
@@ -142,7 +142,7 @@ export function useEmployees() {
       name: newEmployeeData.fullName,
       position: newEmployeeData.position,
       salary: `₸ ${salaryNumber.toLocaleString()}`,
-      email: newEmployeeData.email,
+      email: newEmployeeData.email || `${newEmployeeData.fullName.toLowerCase().replace(/\s+/g, '.')}@company.kz`,
       phone: newEmployeeData.phone,
       address: newEmployeeData.address,
       socialMedia: newEmployeeData.socialMedia,
@@ -175,7 +175,7 @@ export function useEmployees() {
             name: updateData.fullName,
             position: updateData.position,
             salary: `₸ ${salaryNumber.toLocaleString()}`,
-            email: updateData.email,
+            email: updateData.email || `${updateData.fullName.toLowerCase().replace(/\s+/g, '.')}@company.kz`,
             phone: updateData.phone,
             address: updateData.address,
             socialMedia: updateData.socialMedia,
