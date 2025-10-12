@@ -111,6 +111,7 @@ export function AddEmployeeForm({
   onOpenChange: externalOnOpenChange
 }: AddEmployeeFormProps) {
   const [internalOpen, setInternalOpen] = useState(false)
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
   const isEditing = !!editingEmployee
   
   // Используем внешнее состояние, если оно предоставлено, иначе внутреннее
@@ -189,6 +190,7 @@ export function AddEmployeeForm({
       onEmployeeAdd?.(data)
     }
     form.reset()
+    setShowAdvancedOptions(false)
     setOpen(false)
   }
 
@@ -368,173 +370,188 @@ export function AddEmployeeForm({
               )}
             />
 
-            <Separator className="my-6" />
-            
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Категория и льготы</h3>
-              
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Категория сотрудника</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите категорию сотрудника" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {employeeCategories.map((category) => (
-                          <SelectItem key={category.value} value={category.value}>
-                            {category.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                className="mt-4"
+              >
+                {showAdvancedOptions ? "Скрыть дополнительные опции" : "Остальные виды"}
+              </Button>
+            </div>
 
-              <FormField
-                control={form.control}
-                name="harmfulWork"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>
-                        Вредные условия труда
-                      </FormLabel>
-                      <p className="text-sm text-muted-foreground">
-                        Отметьте, если сотрудник работает во вредных условиях
-                      </p>
-                    </div>
-                  </FormItem>
-                )}
-              />
+            {showAdvancedOptions && (
+              <>
+                <Separator className="my-6" />
+                
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Категория и льготы</h3>
+                  
+                  <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Категория сотрудника</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Выберите категорию сотрудника" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {employeeCategories.map((category) => (
+                              <SelectItem key={category.value} value={category.value}>
+                                {category.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <FormField
-                control={form.control}
-                name="additionalDeductions"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Дополнительные налоговые вычеты</FormLabel>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {additionalDeductions.map((deduction) => (
-                        <div key={deduction.value} className="flex items-center space-x-2">
+                  <FormField
+                    control={form.control}
+                    name="harmfulWork"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
                           <Checkbox
-                            id={deduction.value}
-                            checked={field.value?.includes(deduction.value)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                field.onChange([...(field.value || []), deduction.value])
-                              } else {
-                                field.onChange(field.value?.filter(item => item !== deduction.value))
-                              }
-                            }}
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
                           />
-                          <label
-                            htmlFor={deduction.value}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            {deduction.label}
-                          </label>
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Вредные условия труда
+                          </FormLabel>
+                          <p className="text-sm text-muted-foreground">
+                            Отметьте, если сотрудник работает во вредных условиях
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                      </FormItem>
+                    )}
+                  />
 
-            <Separator className="my-6" />
-            
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Дополнительные расходы для вычетов</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="educationExpenses"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Расходы на обучение (₸)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="0" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="additionalDeductions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Дополнительные налоговые вычеты</FormLabel>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {additionalDeductions.map((deduction) => (
+                            <div key={deduction.value} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={deduction.value}
+                                checked={field.value?.includes(deduction.value)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    field.onChange([...(field.value || []), deduction.value])
+                                  } else {
+                                    field.onChange(field.value?.filter(item => item !== deduction.value))
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={deduction.value}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                {deduction.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="medicalExpenses"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Расходы на мед. услуги (₸)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="0" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <Separator className="my-6" />
+                
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Дополнительные расходы для вычетов</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="educationExpenses"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Расходы на обучение (₸)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="0" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="mortgagePayments"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Платежи по ипотеке (₸)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="0" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={form.control}
+                      name="medicalExpenses"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Расходы на мед. услуги (₸)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="0" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="dpvAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Добровольные пенсионные взносы (₸)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="0" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
+                    <FormField
+                      control={form.control}
+                      name="mortgagePayments"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Платежи по ипотеке (₸)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="0" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="dpvAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Добровольные пенсионные взносы (₸)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="0" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             
             <div className="flex justify-end gap-2 pt-4">
               <Button 
