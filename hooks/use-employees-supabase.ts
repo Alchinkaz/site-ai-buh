@@ -60,20 +60,28 @@ export function useEmployeesSupabase() {
       setLoading(true)
       setError(null)
       
+      console.log('Attempting to fetch employees from Supabase...')
+      
       const { data, error: fetchError } = await supabase
         .from('employees')
         .select('*')
         .order('created_at', { ascending: false })
 
+      console.log('Supabase response:', { data, error: fetchError })
+
       if (fetchError) {
+        console.error('Supabase fetch error:', fetchError)
         throw fetchError
       }
 
       const transformedEmployees = data?.map(transformEmployeeFromDB) || []
+      console.log('Transformed employees:', transformedEmployees)
       setEmployees(transformedEmployees)
     } catch (err) {
       console.error('Error fetching employees:', err)
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки сотрудников')
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки сотрудников'
+      console.error('Setting error message:', errorMessage)
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
