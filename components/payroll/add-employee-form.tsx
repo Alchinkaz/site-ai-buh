@@ -28,8 +28,11 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
 import { Plus } from "lucide-react"
 import { NewEmployeeData, UpdateEmployeeData, Employee } from "@/hooks/use-employees"
+import { EmployeeCategory, AdditionalDeduction, getEmployeeCategoryLabel, getAdditionalDeductionLabel } from "@/lib/payroll-calculator"
 
 const employeeSchema = z.object({
   fullName: z.string().min(2, "ФИО должно содержать минимум 2 символа"),
@@ -44,6 +47,13 @@ const employeeSchema = z.object({
   phone: z.string().min(1, "Номер телефона обязателен"),
   address: z.string().optional(),
   socialMedia: z.string().optional(),
+  category: z.string().min(1, "Категория сотрудника обязательна"),
+  harmfulWork: z.boolean().optional(),
+  additionalDeductions: z.array(z.string()).optional(),
+  educationExpenses: z.string().optional(),
+  medicalExpenses: z.string().optional(),
+  mortgagePayments: z.string().optional(),
+  dpvAmount: z.string().optional(),
 })
 
 type EmployeeFormData = z.infer<typeof employeeSchema>
@@ -54,6 +64,33 @@ const workSchedules = [
   { value: "flexible", label: "Гибкий график" },
   { value: "shift", label: "Сменный график" },
   { value: "remote", label: "Удаленная работа" },
+]
+
+const employeeCategories: { value: EmployeeCategory; label: string }[] = [
+  { value: "standard", label: "Обычный сотрудник" },
+  { value: "pensioner_age", label: "Пенсионер по возрасту" },
+  { value: "pensioner_service", label: "Пенсионер за выслугу лет" },
+  { value: "disabled_1_2", label: "Инвалид I, II группы (бессрочно)" },
+  { value: "disabled_2_temp", label: "Инвалид II группы (справка до 2027 г.)" },
+  { value: "disabled_3", label: "Инвалид III группы" },
+  { value: "parent_disabled_child", label: "Родитель ребенка с инвалидностью" },
+  { value: "foreigner_resident", label: "Иностранец с ВНЖ" },
+  { value: "foreigner_eaeu_permanent", label: "Иностранец из ЕАЭС, постоянно пребывающий" },
+  { value: "foreigner_eaeu_temporary", label: "Иностранец из ЕАЭС, временно пребывающий" },
+  { value: "foreigner_remote", label: "Иностранец, работающий дистанционно" },
+  { value: "foreigner_third_permanent", label: "Иностранец из третьих стран, постоянно пребывающий" },
+  { value: "foreigner_third_temporary", label: "Иностранец из третьих стран, временно пребывающий" },
+]
+
+const additionalDeductions: { value: AdditionalDeduction; label: string }[] = [
+  { value: "disability", label: "Вычет для инвалидов" },
+  { value: "chernobyl", label: "Вычет для чернобыльцев/афганцев" },
+  { value: "child_disability", label: "Вычет для родителей детей с инвалидностью" },
+  { value: "multichild", label: "Вычет для многодетных семей" },
+  { value: "education", label: "Вычет на обучение" },
+  { value: "medical", label: "Вычет на мед. услуги" },
+  { value: "mortgage", label: "Вычет на ипотеку" },
+  { value: "dpv", label: "Вычет по добровольным пенсионным взносам" },
 ]
 
 interface AddEmployeeFormProps {
@@ -92,6 +129,13 @@ export function AddEmployeeForm({
       phone: editingEmployee?.phone || "",
       address: editingEmployee?.address || "",
       socialMedia: editingEmployee?.socialMedia || "",
+      category: "standard",
+      harmfulWork: false,
+      additionalDeductions: [],
+      educationExpenses: "",
+      medicalExpenses: "",
+      mortgagePayments: "",
+      dpvAmount: "",
     },
   })
 
@@ -108,6 +152,13 @@ export function AddEmployeeForm({
         phone: editingEmployee.phone,
         address: editingEmployee.address || "",
         socialMedia: editingEmployee.socialMedia || "",
+        category: "standard",
+        harmfulWork: false,
+        additionalDeductions: [],
+        educationExpenses: "",
+        medicalExpenses: "",
+        mortgagePayments: "",
+        dpvAmount: "",
       })
     } else {
       form.reset({
@@ -120,6 +171,13 @@ export function AddEmployeeForm({
         phone: "",
         address: "",
         socialMedia: "",
+        category: "standard",
+        harmfulWork: false,
+        additionalDeductions: [],
+        educationExpenses: "",
+        medicalExpenses: "",
+        mortgagePayments: "",
+        dpvAmount: "",
       })
     }
   }, [editingEmployee, form])
@@ -309,6 +367,174 @@ export function AddEmployeeForm({
                 </FormItem>
               )}
             />
+
+            <Separator className="my-6" />
+            
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Категория и льготы</h3>
+              
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Категория сотрудника</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите категорию сотрудника" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {employeeCategories.map((category) => (
+                          <SelectItem key={category.value} value={category.value}>
+                            {category.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="harmfulWork"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Вредные условия труда
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Отметьте, если сотрудник работает во вредных условиях
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="additionalDeductions"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Дополнительные налоговые вычеты</FormLabel>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {additionalDeductions.map((deduction) => (
+                        <div key={deduction.value} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={deduction.value}
+                            checked={field.value?.includes(deduction.value)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                field.onChange([...(field.value || []), deduction.value])
+                              } else {
+                                field.onChange(field.value?.filter(item => item !== deduction.value))
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={deduction.value}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            {deduction.label}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Separator className="my-6" />
+            
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Дополнительные расходы для вычетов</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="educationExpenses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Расходы на обучение (₸)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="0" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="medicalExpenses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Расходы на мед. услуги (₸)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="0" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="mortgagePayments"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Платежи по ипотеке (₸)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="0" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="dpvAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Добровольные пенсионные взносы (₸)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="0" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
             
             <div className="flex justify-end gap-2 pt-4">
               <Button 
