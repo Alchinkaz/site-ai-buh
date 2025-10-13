@@ -154,16 +154,14 @@ export default function TransactionsPage() {
     setOpen(true)
   }
 
-  function toggleSortFactory(currentSortBy: string, currentSortDir: "asc" | "desc", setSortByFn: any, setSortDirFn: any, setPageFn: any) {
-    return (column: string) => {
-      if (currentSortBy === column) {
-        setSortDirFn(currentSortDir === 'asc' ? 'desc' : 'asc')
-      } else {
-        setSortByFn(column)
-        setSortDirFn('asc')
-      }
-      setPageFn(0)
+  const toggleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortDir('asc')
     }
+    setPage(0)
   }
 
   return (
@@ -437,7 +435,6 @@ async function importExcel(e: any) {
   window.location.reload()
 }
 
-// binded sort toggler
-const toggleSort = toggleSortFactory(sortBy, sortDir, setSortBy, setSortDir, setPage)
+//
 
 
