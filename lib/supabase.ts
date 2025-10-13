@@ -58,6 +58,102 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+      },
+      categories: {
+        Row: {
+          id: number
+          name: string
+          type: 'income' | 'expense'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          type: 'income' | 'expense'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          type?: 'income' | 'expense'
+          created_at?: string
+          updated_at?: string
+        }
+      },
+      transactions: {
+        Row: {
+          id: number
+          type: 'income' | 'expense'
+          amount: string
+          currency: string
+          category_id: number | null
+          description: string | null
+          method: string | null
+          occurred_at: string
+          created_at: string
+          updated_at: string
+          source: string | null
+          source_ref: string | null
+        }
+        Insert: {
+          id?: number
+          type: 'income' | 'expense'
+          amount: string | number
+          currency?: string
+          category_id?: number | null
+          description?: string | null
+          method?: string | null
+          occurred_at?: string
+          created_at?: string
+          updated_at?: string
+          source?: string | null
+          source_ref?: string | null
+        }
+        Update: {
+          id?: number
+          type?: 'income' | 'expense'
+          amount?: string | number
+          currency?: string
+          category_id?: number | null
+          description?: string | null
+          method?: string | null
+          occurred_at?: string
+          created_at?: string
+          updated_at?: string
+          source?: string | null
+          source_ref?: string | null
+        }
+      },
+      chat_ingest_queue: {
+        Row: {
+          id: number
+          message_text: string
+          parsed_json: any | null
+          status: 'pending' | 'processed' | 'failed'
+          error: string | null
+          created_at: string
+          processed_at: string | null
+        }
+        Insert: {
+          id?: number
+          message_text: string
+          parsed_json?: any | null
+          status?: 'pending' | 'processed' | 'failed'
+          error?: string | null
+          created_at?: string
+          processed_at?: string | null
+        }
+        Update: {
+          id?: number
+          message_text?: string
+          parsed_json?: any | null
+          status?: 'pending' | 'processed' | 'failed'
+          error?: string | null
+          created_at?: string
+          processed_at?: string | null
+        }
       }
     }
   }

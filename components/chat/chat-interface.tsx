@@ -62,7 +62,7 @@ export function ChatInterface() {
   const [input, setInput] = useState("")
   const [isRecording, setIsRecording] = useState(false)
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return
 
     const newMessage: Message = {
@@ -74,6 +74,13 @@ export function ChatInterface() {
 
     setMessages([...messages, newMessage])
     setInput("")
+
+    // enqueue for auto-ingest
+    try {
+      await fetch('/api/chat-ingest', { method: 'POST', body: JSON.stringify({ message_text: newMessage.content }) })
+    } catch (e) {
+      // swallow in demo
+    }
 
     // Simulate AI response
     setTimeout(() => {
