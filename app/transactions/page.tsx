@@ -226,11 +226,15 @@ export default function TransactionsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Input
-                  type="date"
-                  value={new Date(form.occurred_at).toISOString().slice(0,10)}
-                  onChange={(e) => setForm({ ...form, occurred_at: new Date(e.target.value + 'T00:00:00').toISOString() })}
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    type="date"
+                    value={new Date(form.occurred_at).toISOString().slice(0,10)}
+                    onChange={(e) => setForm({ ...form, occurred_at: new Date(e.target.value + 'T00:00:00').toISOString() })}
+                    className="w-full"
+                  />
+                  <div></div>
+                </div>
                 {form.category_id === "__other__" && (
                   <Input
                     placeholder="Название новой категории"
@@ -272,8 +276,8 @@ export default function TransactionsPage() {
                   <SelectItem value="expense">Расходы</SelectItem>
                 </SelectContent>
               </Select>
-              <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0) }} />
-              <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0) }} />
+              <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0) }} className="w-40" />
+              <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0) }} className="w-40" />
               <Button variant="outline" onClick={() => exportExcel(items)}>Экспорт</Button>
               <label className="inline-flex items-center gap-2 cursor-pointer">
                 <input type="file" accept=".xlsx,.xls" onChange={importExcel} className="hidden" />
@@ -406,15 +410,25 @@ export default function TransactionsPage() {
 async function exportExcel(rows: any[]) {
   if (!rows?.length) return
   const XLSX = await import('xlsx')
-  const worksheet = XLSX.utils.json_to_sheet(rows)
+  // Map to Russian headers
+  const mappedRows = rows.map(row => ({
+    'Дата': new Date(row.occurred_at).toLocaleDateString('ru-RU'),
+    'Тип': row.type === 'income' ? 'Доход' : 'Расход',
+    'Категория': row.category_id ? categories.find(c => c.id === row.category_id)?.name || '-' : '-',
+    'Сумма': Number(row.amount),
+    'Валюта': row.currency || 'KZT',
+    'Метод оплаты': row.method || '-',
+    'Описание': row.description || '-'
+  }))
+  const worksheet = XLSX.utils.json_to_sheet(mappedRows)
   const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions')
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Операции')
   const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
   const blob = new Blob([wbout], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'transactions.xlsx'
+  a.download = 'операции.xlsx'
   a.click()
   URL.revokeObjectURL(url)
 }
