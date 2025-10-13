@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus, Pencil, Trash2, Search } from "lucide-react"
 
 type Category = { id: number; name: string; type: "income" | "expense" }
 type Transaction = {
@@ -29,7 +29,7 @@ export default function TransactionsPage() {
   const [filterType, setFilterType] = useState<"income" | "expense" | "all">("all")
   const [dateFrom, setDateFrom] = useState<string>("")
   const [dateTo, setDateTo] = useState<string>("")
-  const [month, setMonth] = useState<string>("")
+  // removed month filter per request
   const [q, setQ] = useState("")
   const [sortBy, setSortBy] = useState<string>("occurred_at")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
@@ -39,6 +39,7 @@ export default function TransactionsPage() {
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
 
   const [form, setForm] = useState({
     type: "expense" as "income" | "expense",
@@ -63,14 +64,6 @@ export default function TransactionsPage() {
     if (filterType !== "all") params.set("type", filterType)
     if (dateFrom) params.set("from", new Date(dateFrom).toISOString())
     if (dateTo) params.set("to", new Date(dateTo).toISOString())
-    if (month) {
-      const first = new Date(month + "-01T00:00:00")
-      const last = new Date(first)
-      last.setMonth(first.getMonth() + 1)
-      last.setDate(0)
-      params.set("from", first.toISOString())
-      params.set("to", new Date(first.getFullYear(), first.getMonth() + 1, 0, 23, 59, 59).toISOString())
-    }
     if (q.trim()) params.set("q", q.trim())
     params.set("sortBy", sortBy)
     params.set("sortDir", sortDir)
@@ -88,7 +81,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     loadTransactions()
-  }, [filterType, dateFrom, dateTo, month, q, sortBy, sortDir, pageSize, page])
+  }, [filterType, dateFrom, dateTo, q, sortBy, sortDir, pageSize, page])
 
   function resetForm() {
     setForm({
@@ -234,9 +227,9 @@ export default function TransactionsPage() {
                   </Select>
                 </div>
                 <Input
-                  type="datetime-local"
-                  value={new Date(form.occurred_at).toISOString().slice(0,16)}
-                  onChange={(e) => setForm({ ...form, occurred_at: new Date(e.target.value).toISOString() })}
+                  type="date"
+                  value={new Date(form.occurred_at).toISOString().slice(0,10)}
+                  onChange={(e) => setForm({ ...form, occurred_at: new Date(e.target.value + 'T00:00:00').toISOString() })}
                 />
                 {form.category_id === "__other__" && (
                   <Input
@@ -263,7 +256,12 @@ export default function TransactionsPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Операции ({count})</CardTitle>
             <div className="flex items-center gap-3">
-              <Input placeholder="Поиск..." value={q} onChange={(e) => { setQ(e.target.value); setPage(0) }} className="w-48" />
+              <Button variant="outline" size="icon" onClick={() => setShowSearch((v) => !v)}>
+                <Search className="w-4 h-4" />
+              </Button>
+              {showSearch && (
+                <Input placeholder="Поиск..." value={q} onChange={(e) => { setQ(e.target.value); setPage(0) }} className="w-48" />
+              )}
               <Select value={filterType} onValueChange={(v: any) => setFilterType(v)}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Фильтр" />
@@ -274,9 +272,8 @@ export default function TransactionsPage() {
                   <SelectItem value="expense">Расходы</SelectItem>
                 </SelectContent>
               </Select>
-              <Input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setDateFrom(""); setDateTo(""); setPage(0) }} />
-              <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setMonth(""); setPage(0) }} />
-              <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setMonth(""); setPage(0) }} />
+              <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0) }} />
+              <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0) }} />
               <Button variant="outline" onClick={() => exportExcel(items)}>Экспорт</Button>
               <label className="inline-flex items-center gap-2 cursor-pointer">
                 <input type="file" accept=".xlsx,.xls" onChange={importExcel} className="hidden" />
