@@ -4,12 +4,33 @@ import { supabase } from '@/lib/supabase'
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const type = searchParams.get('type') as 'income' | 'expense' | null
-  const limit = Number(searchParams.get('limit') ?? 50)
+  const limit = Math.min(Number(searchParams.get('limit') ?? 50), 100)
   const offset = Number(searchParams.get('offset') ?? 0)
+  const sortBy = searchParams.get('sortBy') || 'occurred_at'
+  const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc'
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
+  const q = searchParams.get('q')
 
-  let query = supabase.from('transactions').select('*', { count: 'exact' }).order('occurred_at', { ascending: false })
+  let query = supabase.from('transactions').select('*', { count: 'exact' }).order(sortBy, { ascending: sortDir === 'asc' })
   if (type) {
     query = query.eq('type', type)
+  }
+  if (from) {
+    query = query.gte('occurred_at', from)
+  }
+  if (to) {
+    query = query.lte('occurred_at', to)
+  }
+  if (q && q.trim()) {
+    const like = `%${q.trim()}%`
+    query = query.or(
+      [
+        `description.ilike.${like}`,
+        `method.ilike.${like}`,
+        `currency.ilike.${like}`,
+      ].join(',')
+    )
   }
 
   const { data, error, count } = await query.range(offset, offset + limit - 1)
