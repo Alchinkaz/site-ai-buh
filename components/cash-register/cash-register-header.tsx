@@ -13,7 +13,7 @@ export function CashRegisterHeader() {
       </div>
       <div className="flex gap-2">
         <Link href="/transactions">
-          <Button variant="secondary">
+          <Button variant="secondary" className="hover:bg-primary hover:text-primary-foreground transition-colors">
             Доходы/Расходы
           </Button>
         </Link>
