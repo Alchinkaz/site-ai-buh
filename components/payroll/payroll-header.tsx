@@ -1,9 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
+import { Download, CalendarDays } from "lucide-react"
 import { AddEmployeeForm } from "./add-employee-form"
 import { NewEmployeeData } from "@/hooks/use-employees"
+import Link from "next/link"
 
 interface PayrollHeaderProps {
   onEmployeeAdd: (employee: NewEmployeeData) => void
@@ -17,6 +18,12 @@ export function PayrollHeader({ onEmployeeAdd }: PayrollHeaderProps) {
         <p className="text-muted-foreground mt-2">Управление персоналом и расчет заработной платы</p>
       </div>
       <div className="flex gap-2">
+        <Link href="/payroll/attendance">
+          <Button variant="secondary">
+            <CalendarDays className="w-4 h-4 mr-2" />
+            Посещаемость
+          </Button>
+        </Link>
         <Button variant="outline">
           <Download className="w-4 h-4 mr-2" />
           Экспорт
