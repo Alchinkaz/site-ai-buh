@@ -38,6 +38,15 @@ CREATE TRIGGER update_employees_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Вставка начальных данных
+-- Таблица посещаемости: часы по дням месяца
+CREATE TABLE IF NOT EXISTS attendance (
+  employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL, -- 1-12
+  hours JSONB NOT NULL DEFAULT '{}'::jsonb, -- {"1":"8","2":"Н","3":"0", ...}
+  PRIMARY KEY (employee_id, year, month)
+);
+
 INSERT INTO employees (name, position, salary, email, phone, address, social_media, status, work_schedule, hire_date) VALUES
 ('Айгуль Нурланова', 'Главный бухгалтер', 500000, 'aigul@company.kz', '+7 777 123 4567', NULL, NULL, 'active', 'full-time', '2023-01-15'),
 ('Ерлан Сапаров', 'Финансовый директор', 600000, 'erlan@company.kz', '+7 777 234 5678', NULL, NULL, 'active', 'full-time', '2022-11-20'),

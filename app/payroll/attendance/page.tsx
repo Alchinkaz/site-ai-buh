@@ -7,6 +7,7 @@ import Link from "next/link"
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useEmployeesSafe } from "@/hooks/use-employees-safe"
+import { supabase } from "@/lib/supabase"
 
 type HoursByDay = Record<number, string>
 
@@ -23,17 +24,28 @@ export default function AttendancePage() {
   // demo local state for hours input; in prod save to backend
   const [hoursMap, setHoursMap] = useState<Record<string, HoursByDay>>({})
 
+  // Load attendance for the month
   useEffect(() => {
-    // initialize employees rows with empty hours if not set
-    setHoursMap((prev) => {
-      const next = { ...prev }
-      employees.forEach((e) => {
-        const key = String(e.id)
-        if (!next[key]) next[key] = {}
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('employee_id, hours')
+        .eq('year', year)
+        .eq('month', month + 1)
+      if (!error && data) {
+        const m: Record<string, HoursByDay> = {}
+        data.forEach((r: any) => { m[String(r.employee_id)] = r.hours || {} })
+        setHoursMap((prev) => ({ ...prev, ...m }))
+      }
+      // ensure all employees exist in map
+      setHoursMap((prev) => {
+        const next = { ...prev }
+        employees.forEach((e) => { const k = String(e.id); if (!next[k]) next[k] = {} })
+        return next
       })
-      return next
-    })
-  }, [employees])
+    }
+    load()
+  }, [employees, year, month])
 
   const isWeekend = (d: number) => {
     const date = new Date(year, month, d)
@@ -121,6 +133,16 @@ export default function AttendancePage() {
                               }))
                             }}
                             placeholder={isWeekend(d) ? '' : '8'}
+                            onBlur={async (e) => {
+                              // save cell to supabase
+                              const nextRow = { ...(hoursMap[empKey] || {}), [d]: e.target.value }
+                              await supabase.from('attendance').upsert({
+                                employee_id: Number(empKey),
+                                year,
+                                month: month + 1,
+                                hours: nextRow,
+                              }, { onConflict: 'employee_id,year,month' })
+                            }}
                           />
                         </td>
                       ))}

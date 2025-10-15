@@ -146,43 +146,51 @@ export interface PayrollCalculation {
 /**
  * Основная функция расчета заработной платы
  */
-export function calculatePayroll(employee: EmployeePayrollData): PayrollCalculation {
+export function calculatePayroll(employee: EmployeePayrollData & { unpaidAbsenceHours?: number; hoursPerDay?: number }): PayrollCalculation {
   const { salary, category, additionalDeductions, harmfulWork } = employee
+
+  // Учёт неоплачиваемых часов по посещаемости
+  const hoursPerDay = employee.hoursPerDay ?? 8
+  const unpaidHours = Math.max(0, employee.unpaidAbsenceHours ?? 0)
+  const hourlyRate = salary / (hoursPerDay * 21.75) // усреднённая норма: 21.75 рабочих дней в мес
+  const absenceDeduction = Math.round(hourlyRate * unpaidHours)
+
+  const adjustedSalary = Math.max(0, salary - absenceDeduction)
   
   // 1. Расчет обязательных пенсионных взносов (ОПВ)
-  const opv = calculateOPV(salary, category)
+  const opv = calculateOPV(adjustedSalary, category)
   
   // 2. Расчет взносов на обязательное соц. мед. страхование (ВОСМС)
-  const vosms = calculateVOSMS(salary, category)
+  const vosms = calculateVOSMS(adjustedSalary, category)
   
   // 3. Расчет налоговых вычетов
-  const taxDeductions = calculateTaxDeductions(salary, opv, vosms, additionalDeductions, employee)
+  const taxDeductions = calculateTaxDeductions(adjustedSalary, opv, vosms, additionalDeductions, employee)
   
   // 4. Расчет подоходного налога (ИПН)
-  const ipnCalculation = calculateIPN(salary, opv, vosms, taxDeductions)
+  const ipnCalculation = calculateIPN(adjustedSalary, opv, vosms, taxDeductions)
   
   // 5. Расчет социальных отчислений (СО)
-  const so = calculateSO(salary, opv, category)
+  const so = calculateSO(adjustedSalary, opv, category)
   
   // 6. Расчет социального налога (СН)
-  const sn = calculateSN(salary, opv, vosms, so, category)
+  const sn = calculateSN(adjustedSalary, opv, vosms, so, category)
   
   // 7. Расчет отчислений на обязательное соц. мед. страхование (ООСМС)
-  const oosms = calculateOOSMS(salary, category)
+  const oosms = calculateOOSMS(adjustedSalary, category)
   
   // 8. Расчет профессиональных пенсионных взносов (ОППВ)
-  const oppv = calculateOPPV(salary, harmfulWork || false, category)
+  const oppv = calculateOPPV(adjustedSalary, harmfulWork || false, category)
   
   // 9. Расчет обязательных пенсионных взносов работодателя (ОПВР)
-  const opvr = calculateOPVR(salary, category)
+  const opvr = calculateOPVR(adjustedSalary, category)
   
   // Итоговые расчеты
-  const totalEmployeeDeductions = opv + vosms + ipnCalculation.ipnAmount
+  const totalEmployeeDeductions = opv + vosms + ipnCalculation.ipnAmount + absenceDeduction
   const totalEmployerContributions = oosms + so + sn + oppv + opvr
-  const netSalary = salary - totalEmployeeDeductions
+  const netSalary = adjustedSalary - (totalEmployeeDeductions - absenceDeduction)
   
   return {
-    grossSalary: salary,
+    grossSalary: adjustedSalary,
     employeeDeductions: {
       opv,
       vosms,
