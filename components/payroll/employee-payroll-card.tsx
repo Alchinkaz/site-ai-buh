@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +15,7 @@ import {
   getEmployeeCategoryLabel
 } from "@/lib/payroll-calculator"
 import { PayrollCalculationCard } from "./payroll-calculation-card"
+import { supabase } from "@/lib/supabase"
 import { PayrollExport } from "./payroll-export"
 
 interface EmployeePayrollCardProps {
@@ -59,12 +60,70 @@ export function EmployeePayrollCard({ employee }: EmployeePayrollCardProps) {
     }
   }
 
+  const now = useMemo(() => new Date(), [])
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1 // 1-12
+  const hoursPerDay = 8
+
+  async function loadAttendanceUnpaidHours(employeeId: number): Promise<number> {
+    // load global non-working days
+    const meta = await supabase
+      .from('attendance_meta')
+      .select('non_working_days')
+      .eq('year', year)
+      .eq('month', month)
+      .maybeSingle()
+    const globalNonWorking: number[] = meta.data?.non_working_days || []
+
+    const { data } = await supabase
+      .from('attendance')
+      .select('hours')
+      .eq('employee_id', employeeId)
+      .eq('year', year)
+      .eq('month', month)
+      .maybeSingle()
+
+    const hoursByDay = (data?.hours || {}) as Record<string, string>
+
+    // Expected working days: all month days excluding weekends and global non-working
+    const daysInMonth = new Date(year, month, 0).getDate()
+    const isWeekend = (d: number) => {
+      const date = new Date(year, month - 1, d)
+      const dow = date.getDay()
+      return dow === 0 || dow === 6
+    }
+
+    const expectedWorkingDays: number[] = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      if (!isWeekend(d) && !globalNonWorking.includes(d)) expectedWorkingDays.push(d)
+    }
+
+    // Paid hours equals sum of entered hours (clamped 0..hoursPerDay) on expected working days.
+    // Allow half-day by entering 4 (when hoursPerDay=8). 'Н'/'н' or empty => 0 hours.
+    let paidHours = 0
+    for (const d of expectedWorkingDays) {
+      const raw = hoursByDay[String(d)] || hoursByDay[d as unknown as string]
+      if (!raw) continue
+      const normalized = raw.toString().trim().toLowerCase()
+      if (normalized === 'н' || normalized === 'h' || normalized === 'v') {
+        continue
+      }
+      const val = Math.max(0, Math.min(hoursPerDay, Number(normalized) || 0))
+      paidHours += val
+    }
+
+    const expectedHours = expectedWorkingDays.length * hoursPerDay
+    const unpaid = Math.max(0, expectedHours - paidHours)
+    return unpaid
+  }
+
   const handleCalculate = async () => {
     setIsCalculating(true)
     
     try {
       const employeeData = getEmployeePayrollData()
-      const result = calculatePayroll(employeeData)
+      const unpaidAbsenceHours = await loadAttendanceUnpaidHours(employee.id)
+      const result = calculatePayroll({ ...employeeData, unpaidAbsenceHours, hoursPerDay })
       setCalculation(result)
       setShowCalculation(true)
     } catch (error) {
