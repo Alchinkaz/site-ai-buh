@@ -47,6 +47,14 @@ CREATE TABLE IF NOT EXISTS attendance (
   PRIMARY KEY (employee_id, year, month)
 );
 
+-- Метаданные посещаемости: произвольные нерабочие дни месяца
+CREATE TABLE IF NOT EXISTS attendance_meta (
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL, -- 1-12
+  non_working_days JSONB NOT NULL DEFAULT '[]'::jsonb, -- [1,2,3]
+  PRIMARY KEY (year, month)
+);
+
 INSERT INTO employees (name, position, salary, email, phone, address, social_media, status, work_schedule, hire_date) VALUES
 ('Айгуль Нурланова', 'Главный бухгалтер', 500000, 'aigul@company.kz', '+7 777 123 4567', NULL, NULL, 'active', 'full-time', '2023-01-15'),
 ('Ерлан Сапаров', 'Финансовый директор', 600000, 'erlan@company.kz', '+7 777 234 5678', NULL, NULL, 'active', 'full-time', '2022-11-20'),
