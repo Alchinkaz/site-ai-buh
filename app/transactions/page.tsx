@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Pencil, Trash2, Search } from "lucide-react"
+import { Plus, Pencil, Trash2, Search, ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 type Category = { id: number; name: string; type: "income" | "expense" }
 type Transaction = {
@@ -161,9 +162,17 @@ export default function TransactionsPage() {
     <DashboardLayout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Доходы / Расходы</h1>
-            <p className="text-muted-foreground mt-2">Управление финансовыми операциями и категориями</p>
+          <div className="flex items-center gap-3">
+            <Link href="/cash-register">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Назад в кассу
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold">Доходы / Расходы</h1>
+              <p className="text-muted-foreground mt-2">Управление финансовыми операциями и категориями</p>
+            </div>
           </div>
           <Button variant="outline" onClick={() => setSettingsOpen(true)}>Настройки категорий</Button>
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
