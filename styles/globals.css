@@ -1,3 +1,8 @@
+/* Pointer cursor on interactive elements for clearer affordance */
+button, [role="button"], a[href] {
+  cursor: pointer;
+}
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
