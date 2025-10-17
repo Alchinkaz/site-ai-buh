@@ -42,7 +42,7 @@ const navigation = [
   { name: "Сотрудники/Зарплата", href: "/payroll", icon: Users },
   { name: "Торговля", href: "/trade", icon: ShoppingCart },
   { name: "Склады", href: "/warehouses", icon: Warehouse },
-  { name: "Касса", href: "/cash-register", icon: CreditCard },
+  { name: "Касса", href: "/cash-register/transactions-fa", icon: CreditCard },
   { name: "Аналитика", href: "/analytics", icon: BarChart3 },
   { name: "Напоминания", href: "/reminders", icon: Bell },
   { name: "Тарифы", href: "/pricing", icon: DollarSign },
