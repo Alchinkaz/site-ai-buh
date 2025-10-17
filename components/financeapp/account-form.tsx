@@ -23,6 +23,7 @@ export function AccountForm({ onSuccess, onCancel }: AccountFormProps) {
     type: "bank" as "bank" | "cash" | "kaspi" | "other",
     balance: "",
     currency: "KZT",
+    accountNumber: "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,13 +41,14 @@ export function AccountForm({ onSuccess, onCancel }: AccountFormProps) {
         type: formData.type,
         balance: Number.parseFloat(formData.balance) || 0,
         currency: formData.currency,
+        accountNumber: formData.accountNumber.trim() || undefined,
       }
 
       addAccount(newAccountData)
 
       toast.success(`Счёт "${formData.name}" успешно создан`)
 
-      setFormData({ name: "", type: "bank", balance: "", currency: "KZT" })
+      setFormData({ name: "", type: "bank", balance: "", currency: "KZT", accountNumber: "" })
       onSuccess?.()
     } catch (error) {
       toast.error("Не удалось создать счёт. Попробуйте снова.")
@@ -87,6 +89,12 @@ export function AccountForm({ onSuccess, onCancel }: AccountFormProps) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="accountNumber">Номер счёта (необязательно)</Label>
+        <Input id="accountNumber" placeholder="Например: 4400 1234 5678 9012" value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} disabled={isSubmitting} />
+        <p className="text-xs text-muted-foreground">Мы покажем только последние цифры для безопасности.</p>
       </div>
 
       <div className="space-y-2">

@@ -44,4 +44,12 @@ export function formatDate(date: string): string {
   return `${day}.${month}.${year}`
 }
 
+export function maskAccountNumber(accountNumber?: string, visible = 4): string | undefined {
+  if (!accountNumber) return undefined
+  const digits = accountNumber.replace(/\s+/g, "")
+  if (digits.length <= visible) return digits
+  const last = digits.slice(-visible)
+  return `•••• ${last}`
+}
+
 

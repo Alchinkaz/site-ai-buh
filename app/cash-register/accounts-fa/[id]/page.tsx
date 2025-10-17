@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { FinanceProvider, useFinance } from "@/lib/financeapp/finance-context"
-import { formatCurrency, formatDate } from "@/lib/financeapp/finance-utils"
+import { formatCurrency, formatDate, maskAccountNumber } from "@/lib/financeapp/finance-utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -85,9 +85,16 @@ function AccountDetailInner() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">
-              <span className="block max-w-[260px] truncate" title={account.name}>{account.name}</span>
-            </h1>
+            <div className="leading-tight">
+              <h1 className="text-2xl font-bold">
+                <span className="block max-w-[260px] truncate" title={account.name}>{account.name}</span>
+              </h1>
+              {account.accountNumber && (
+                <span className="mt-0.5 block text-xs text-muted-foreground" title={account.accountNumber}>
+                  {maskAccountNumber(account.accountNumber)}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">История операций по счёту</p>
           </div>
         </div>

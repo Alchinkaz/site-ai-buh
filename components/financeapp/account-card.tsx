@@ -1,6 +1,6 @@
 "use client"
 
-import { formatCurrency } from "@/lib/financeapp/finance-utils"
+import { formatCurrency, maskAccountNumber } from "@/lib/financeapp/finance-utils"
 import type { Account } from "@/lib/financeapp/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -49,10 +49,15 @@ export function AccountCard({ account, transactionCount = 0 }: AccountCardProps)
           <div className="rounded-full bg-primary/10 p-2 text-primary">{getAccountIcon(account.type)}</div>
           <div>
             <CardTitle className="text-base">
-              <span className="block max-w-[160px] truncate" title={account.name}>
+              <span className="block max-w-[180px] truncate" title={account.name}>
                 {account.name}
               </span>
             </CardTitle>
+            {account.accountNumber && (
+              <span className="mt-0.5 block text-xs text-muted-foreground" title={account.accountNumber}>
+                {maskAccountNumber(account.accountNumber)}
+              </span>
+            )}
             <Badge variant="secondary" className="mt-1 text-xs">
               {getAccountTypeLabel(account.type)}
             </Badge>

@@ -6,6 +6,7 @@ export interface Account {
   type: "bank" | "cash" | "kaspi" | "other"
   balance: number
   currency: string
+  accountNumber?: string
   createdAt: string
 }
 
