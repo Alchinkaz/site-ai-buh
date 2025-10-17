@@ -48,7 +48,11 @@ export function AccountCard({ account, transactionCount = 0 }: AccountCardProps)
         <div className="flex items-center gap-2">
           <div className="rounded-full bg-primary/10 p-2 text-primary">{getAccountIcon(account.type)}</div>
           <div>
-            <CardTitle className="text-base">{account.name}</CardTitle>
+            <CardTitle className="text-base">
+              <span className="block max-w-[160px] truncate" title={account.name}>
+                {account.name}
+              </span>
+            </CardTitle>
             <Badge variant="secondary" className="mt-1 text-xs">
               {getAccountTypeLabel(account.type)}
             </Badge>
