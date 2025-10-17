@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Plus, Download } from "lucide-react"
+import { Plus, Download, ExternalLink } from "lucide-react"
 import Link from "next/link"
 
 export function CashRegisterHeader() {
@@ -15,6 +15,12 @@ export function CashRegisterHeader() {
         <Link href="/transactions">
           <Button variant="secondary" className="hover:bg-primary hover:text-primary-foreground transition-colors">
             Доходы/Расходы
+          </Button>
+        </Link>
+        <Link href="/cash-register/financeapp">
+          <Button variant="outline">
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Открыть FinanceApp
           </Button>
         </Link>
         <Button variant="outline">
