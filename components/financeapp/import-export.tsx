@@ -19,7 +19,7 @@ interface ImportExportProps {
 }
 
 export function ImportExport({ onImportComplete }: ImportExportProps) {
-  const { accounts, transactions, addTransaction, categories, counterparties, addCategory, addCounterparty } = useFinance()
+  const { accounts, transactions, addTransaction, categories, counterparties, addCategory, addCounterparty, addAccount } = useFinance()
   const [importOpen, setImportOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
@@ -46,43 +46,80 @@ export function ImportExport({ onImportComplete }: ImportExportProps) {
     
     data.forEach((row, index) => {
       try {
-        // Ожидаемые поля: дата, сумма, тип, описание, счет, категория, контрагент
-        const date = row['Дата'] || row['дата'] || row['Date'] || row['date']
-        const amount = parseFloat(row['Сумма'] || row['сумма'] || row['Amount'] || row['amount'] || '0')
-        const type = row['Тип'] || row['тип'] || row['Type'] || row['type'] || 'expense'
-        const description = row['Описание'] || row['описание'] || row['Description'] || row['description'] || ''
-        const accountName = row['Счет'] || row['счет'] || row['Account'] || row['account'] || ''
-        const categoryName = row['Категория'] || row['категория'] || row['Category'] || row['category'] || ''
-        const counterpartyName = row['Контрагент'] || row['контрагент'] || row['Counterparty'] || row['counterparty'] || ''
+        // Парсинг банковской выписки ForteBank
+        const date = row['Күні/Дата'] || row['Дата'] || row['Date'] || row['date']
+        const documentNumber = row['Құжат Нөмірі/Номер документа'] || row['Номер документа'] || row['Document Number'] || ''
+        const sender = row['Жіберуші (Атауы, БСК, ЖСК, БСН/ЖСН) / Отправитель (Наименование, БИК, ИИК, БИН/ИИН)'] || row['Отправитель'] || row['Sender'] || ''
+        const recipient = row['Алушы (Атауы, БСК, ЖСК, БСН/ЖСН) / Получатель (Наименование, БИК, ИИК, БИН/ИИН)'] || row['Получатель'] || row['Recipient'] || ''
+        const debit = parseFloat((row['Дебет / Дебет'] || row['Дебет'] || row['Debit'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
+        const credit = parseFloat((row['Кредит / Кредит'] || row['Кредит'] || row['Credit'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
+        const description = row['Төлемнің тағайындалуы / Назначение платежа'] || row['Назначение платежа'] || row['Purpose'] || row['Description'] || ''
+        const rate = row['Бағам/Курс'] || row['Курс'] || row['Rate'] || '1.00'
 
-        if (!date || !amount || !accountName) {
+        // Определяем тип транзакции и сумму
+        let amount = 0
+        let type = 'expense'
+        let counterpartyName = ''
+
+        if (debit > 0 && credit === 0) {
+          // Расход (дебет)
+          amount = debit
+          type = 'expense'
+          counterpartyName = recipient
+        } else if (credit > 0 && debit === 0) {
+          // Доход (кредит)
+          amount = credit
+          type = 'income'
+          counterpartyName = sender
+        } else {
+          return // Пропускаем строки без операций
+        }
+
+        if (!date || !amount) {
           return // Пропускаем строки без обязательных полей
         }
 
-        // Находим счет по имени
-        const account = accounts.find(a => a.name.toLowerCase().includes(accountName.toLowerCase()))
+        // Находим счет ForteBank или создаем его
+        let account = accounts.find(a => a.name.toLowerCase().includes('forte') || a.name.toLowerCase().includes('форте'))
         if (!account) {
-          return // Пропускаем если счет не найден
+          // Создаем счет ForteBank если его нет
+          account = addAccount({
+            name: 'ForteBank',
+            type: 'bank',
+            balance: 0,
+            currency: 'KZT',
+            accountNumber: 'KZ9496511F0008314291'
+          })
+        }
+
+        // Определяем категорию на основе описания
+        let categoryName = 'Прочие'
+        if (description.toLowerCase().includes('зарплат') || description.toLowerCase().includes('зп')) {
+          categoryName = 'Зарплата'
+        } else if (description.toLowerCase().includes('гарантийн') || description.toLowerCase().includes('взнос')) {
+          categoryName = 'Гарантийные взносы'
+        } else if (description.toLowerCase().includes('услуг') || description.toLowerCase().includes('обслуживани')) {
+          categoryName = 'Услуги'
+        } else if (description.toLowerCase().includes('материал') || description.toLowerCase().includes('товар')) {
+          categoryName = 'Материалы'
         }
 
         // Находим или создаем категорию
         let category = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
-        if (!category && categoryName) {
-          // Создаем новую категорию
+        if (!category) {
           category = addCategory({
             name: categoryName,
             type: type === 'income' ? 'income' : 'expense',
-            color: '#3B82F6'
+            color: type === 'income' ? '#10B981' : '#EF4444'
           })
         }
 
         // Находим или создаем контрагента
         let counterparty = counterparties.find(cp => cp.name.toLowerCase() === counterpartyName.toLowerCase())
         if (!counterparty && counterpartyName) {
-          // Создаем нового контрагента
           counterparty = addCounterparty({
             name: counterpartyName,
-            type: 'individual' as const,
+            type: 'organization' as const,
             contactInfo: ''
           })
         }
@@ -90,12 +127,12 @@ export function ImportExport({ onImportComplete }: ImportExportProps) {
         const transaction = {
           accountId: account.id,
           amount: Math.abs(amount),
-          type: type === 'income' ? 'income' : 'expense',
+          type: type as 'income' | 'expense',
           date: new Date(date).toISOString().split('T')[0],
-          comment: description,
+          comment: `${description}${documentNumber ? ` (Док: ${documentNumber})` : ''}`,
           categoryId: category?.id || '',
           counterpartyId: counterparty?.id || '',
-          currency: account.currency
+          currency: 'KZT'
         }
 
         processedTransactions.push(transaction)
@@ -174,31 +211,31 @@ export function ImportExport({ onImportComplete }: ImportExportProps) {
   const downloadTemplate = () => {
     const templateData = [
       {
-        'Дата': '2024-01-15',
-        'Сумма': '1000',
-        'Тип': 'Доход',
-        'Описание': 'Продажа товара',
-        'Счет': 'Наличные',
-        'Категория': 'Продажи',
-        'Контрагент': 'Клиент 1',
-        'Валюта': 'KZT'
+        'Күні/Дата': '01.10.2025 14:59:11',
+        'Құжат Нөмірі/Номер документа': '71',
+        'Жіберуші (Атауы, БСК, ЖСК, БСН/ЖСН) / Отправитель (Наименование, БИК, ИИК, БИН/ИИН)': 'Alchin',
+        'Алушы (Атауы, БСК, ЖСК, БСН/ЖСН) / Получатель (Наименование, БИК, ИИК, БИН/ИИН)': 'Акционерное общество "Центр электронных финансов"',
+        'Дебет / Дебет': '30 000,00',
+        'Кредит / Кредит': '0,00',
+        'Төлемнің тағайындалуы / Назначение платежа': 'Гарантийный взнос. ИП Alchin 960821350108',
+        'Бағам/Курс': '1.00'
       },
       {
-        'Дата': '2024-01-16',
-        'Сумма': '500',
-        'Тип': 'Расход',
-        'Описание': 'Покупка материалов',
-        'Счет': 'Банк',
-        'Категория': 'Материалы',
-        'Контрагент': 'Поставщик 1',
-        'Валюта': 'KZT'
+        'Күні/Дата': '01.10.2025 11:14:01',
+        'Құжат Нөмірі/Номер документа': '153784921',
+        'Жіберуші (Атауы, БСК, ЖСК, БСН/ЖСН) / Отправитель (Наименование, БИК, ИИК, БИН/ИИН)': 'Коммунальное государственное учреждение "Детско-юношеская спортивная школа села Тенге"',
+        'Алушы (Атауы, БСК, ЖСК, БСН/ЖСН) / Получатель (Наименование, БИК, ИИК, БИН/ИИН)': 'ИП Alchin ЦУРИЕВ ЧЕНГИСХАН ДЖАМАЛАЙЛОВИЧ',
+        'Дебет / Дебет': '0,00',
+        'Кредит / Кредит': '14 600,00',
+        'Төлемнің тағайындалуы / Назначение платежа': 'СФ# 2852781/25-534 за 01.10.2025 ЗП#. Услуги по техническому обслуживанию видеонаблюдения за август месяц 2025г.',
+        'Бағам/Курс': '1.00'
       }
     ]
 
     const ws = XLSX.utils.json_to_sheet(templateData)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Шаблон")
-    XLSX.writeFile(wb, "template_transactions.xlsx")
+    XLSX.utils.book_append_sheet(wb, ws, "ForteBank Шаблон")
+    XLSX.writeFile(wb, "fortebank_template.xlsx")
   }
 
   return (
@@ -239,8 +276,10 @@ export function ImportExport({ onImportComplete }: ImportExportProps) {
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Ожидаемые поля в файле:</strong><br />
-                    Дата, Сумма, Тип (Доход/Расход), Описание, Счет, Категория, Контрагент, Валюта
+                    <strong>Поддерживается формат банковской выписки ForteBank:</strong><br />
+                    Күні/Дата, Дебет/Кредит, Отправитель/Получатель, Назначение платежа<br />
+                    <strong>Или стандартный формат:</strong><br />
+                    Дата, Сумма, Тип, Описание, Счет, Категория, Контрагент
                   </AlertDescription>
                 </Alert>
 
