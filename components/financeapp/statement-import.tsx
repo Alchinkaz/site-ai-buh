@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, AlertCircle, CheckCircle } from "lucide-react"
@@ -16,7 +17,7 @@ export function StatementImport() {
 
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
-  const [bankName, setBankName] = useState("")
+  const [selectedAccountId, setSelectedAccountId] = useState("")
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
 
@@ -55,10 +56,8 @@ export function StatementImport() {
         else return
         if (!date || !amount) return
 
-        let account = accounts.find(a => (bankName ? a.name.toLowerCase().includes(bankName.toLowerCase()) : (a.name.toLowerCase().includes('forte') || a.name.toLowerCase().includes('форте'))))
-        if (!account) {
-          account = addAccount({ name: bankName || 'ForteBank', type: 'bank', balance: 0, currency: 'KZT' })
-        }
+        const account = accounts.find(a => a.id === selectedAccountId)
+        if (!account) return
 
         let categoryName = type === 'income' ? 'Поступления' : 'Списания'
         if (String(description).toLowerCase().includes('зарплат')) categoryName = 'Зарплата'
@@ -96,8 +95,8 @@ export function StatementImport() {
       if (!isNaN(amountSigned) && amountSigned !== 0) { amount = Math.abs(amountSigned); type = amountSigned > 0 ? 'income' : 'expense' }
       else if (creditKaspi > 0 || debitKaspi > 0) { amount = creditKaspi > 0 ? creditKaspi : debitKaspi; type = creditKaspi > 0 ? 'income' : 'expense' } else return
       if (!date || !amount) return
-      let account = accounts.find(a => (bankName ? a.name.toLowerCase().includes(bankName.toLowerCase()) : a.name.toLowerCase().includes('kaspi')))
-      if (!account) account = addAccount({ name: bankName || 'Kaspi', type: 'kaspi', balance: 0, currency: 'KZT' })
+      const account = accounts.find(a => a.id === selectedAccountId)
+      if (!account) return
       const catName = type === 'income' ? 'Поступления (Kaspi)' : 'Списания (Kaspi)'
       let category = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
       if (!category) category = addCategory({ name: catName, type, color: type === 'income' ? '#10B981' : '#EF4444' })
@@ -118,8 +117,8 @@ export function StatementImport() {
       let type: 'income' | 'expense' = 'expense'
       if (debit > 0 && credit === 0) { amount = debit; type = 'expense' } else if (credit > 0 && debit === 0) { amount = credit; type = 'income' } else return
       if (!date || !amount) return
-      let account = accounts.find(a => bankName ? a.name.toLowerCase().includes(bankName.toLowerCase()) : a.name.toLowerCase().includes('1c'))
-      if (!account) account = addAccount({ name: bankName || '1C Bank', type: 'bank', balance: 0, currency: 'KZT' })
+      const account = accounts.find(a => a.id === selectedAccountId)
+      if (!account) return
       const catName = type === 'income' ? 'Поступления (1C)' : 'Списания (1C)'
       let category = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
       if (!category) category = addCategory({ name: catName, type, color: type === 'income' ? '#10B981' : '#EF4444' })
@@ -178,8 +177,8 @@ export function StatementImport() {
       }
       if (!type || !date || !amount) return
 
-      let account = accounts.find((a) => (bankName ? a.name.toLowerCase().includes(bankName.toLowerCase()) : true))
-      if (!account) account = addAccount({ name: bankName || '1C Bank', type: 'bank', balance: 0, currency: 'KZT' })
+      const account = accounts.find((a) => a.id === selectedAccountId)
+      if (!account) return []
 
       let categoryName = detectCategoryByText(purpose)
       if (!categoryName) categoryName = type === 'income' ? 'Поступления' : 'Списания'
@@ -253,8 +252,19 @@ export function StatementImport() {
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label htmlFor="bank-name">Наименование банка</Label>
-            <Input id="bank-name" placeholder="Например: ForteBank, Kaspi, 1C" value={bankName} onChange={(e) => setBankName(e.target.value)} className="mt-2" />
+            <Label htmlFor="account-select">Выберите счёт</Label>
+            <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+              <SelectTrigger id="account-select" className="mt-2">
+                <SelectValue placeholder="Выберите счёт для импорта" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((acc) => (
+                  <SelectItem key={acc.id} value={acc.id}>
+                    {acc.name} ({acc.currency})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label htmlFor="statement-file">Файл выписки</Label>
@@ -279,7 +289,7 @@ export function StatementImport() {
             </Alert>
           )}
           <div className="flex gap-2">
-            <Button onClick={handleImport} disabled={!file || status === 'processing'}>Импортировать</Button>
+            <Button onClick={handleImport} disabled={!file || !selectedAccountId || status === 'processing'}>Импортировать</Button>
             <Button variant="outline" onClick={() => setOpen(false)}>Закрыть</Button>
           </div>
         </div>
