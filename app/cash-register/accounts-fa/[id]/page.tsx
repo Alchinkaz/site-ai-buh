@@ -1,6 +1,7 @@
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout"
+import { useState } from "react"
 import { FinanceProvider, useFinance } from "@/lib/financeapp/finance-context"
 import { formatCurrency, formatDate, maskAccountNumber } from "@/lib/financeapp/finance-utils"
 import { Button } from "@/components/ui/button"
