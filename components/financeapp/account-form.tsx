@@ -12,18 +12,26 @@ import { toast } from "sonner"
 interface AccountFormProps {
   onSuccess?: () => void
   onCancel?: () => void
+  accountId?: string
+  initialValues?: {
+    name?: string
+    type?: "bank" | "cash" | "kaspi" | "other"
+    balance?: number
+    currency?: string
+    accountNumber?: string
+  }
 }
 
-export function AccountForm({ onSuccess, onCancel }: AccountFormProps) {
-  const { addAccount, accounts } = useFinance()
+export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: AccountFormProps) {
+  const { addAccount, updateAccount } = useFinance()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
-    name: "",
-    type: "bank" as "bank" | "cash" | "kaspi" | "other",
-    balance: "",
-    currency: "KZT",
-    accountNumber: "",
+    name: initialValues?.name || "",
+    type: (initialValues?.type || "bank") as "bank" | "cash" | "kaspi" | "other",
+    balance: initialValues?.balance != null ? String(initialValues.balance) : "",
+    currency: initialValues?.currency || "KZT",
+    accountNumber: initialValues?.accountNumber || "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,7 +44,7 @@ export function AccountForm({ onSuccess, onCancel }: AccountFormProps) {
 
     setIsSubmitting(true)
     try {
-      const newAccountData = {
+      const payload = {
         name: formData.name,
         type: formData.type,
         balance: Number.parseFloat(formData.balance) || 0,
@@ -44,11 +52,17 @@ export function AccountForm({ onSuccess, onCancel }: AccountFormProps) {
         accountNumber: formData.accountNumber.trim() || undefined,
       }
 
-      addAccount(newAccountData)
+      if (accountId) {
+        updateAccount(accountId, payload)
+        toast.success(`Счёт "${formData.name}" обновлён`)
+      } else {
+        addAccount(payload)
+        toast.success(`Счёт "${formData.name}" успешно создан`)
+      }
 
-      toast.success(`Счёт "${formData.name}" успешно создан`)
-
-      setFormData({ name: "", type: "bank", balance: "", currency: "KZT", accountNumber: "" })
+      if (!accountId) {
+        setFormData({ name: "", type: "bank", balance: "", currency: "KZT", accountNumber: "" })
+      }
       onSuccess?.()
     } catch (error) {
       toast.error("Не удалось создать счёт. Попробуйте снова.")

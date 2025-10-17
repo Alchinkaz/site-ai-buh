@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Trash2 } from "lucide-react"
+import { ArrowLeft, Wallet, TrendingUp, TrendingDown, Trash2, Pencil } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { AccountForm } from "@/components/financeapp/account-form"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useParams, useRouter } from "next/navigation"
@@ -17,6 +19,7 @@ function AccountDetailInner() {
   const router = useRouter()
   const id = params.id as string
   const { accounts, transactions, categories, counterparties, deleteAccount } = useFinance()
+  const [editOpen, setEditOpen] = useState(false)
 
   const account = accounts.find((a) => a.id === id)
   const accountTransactions = transactions
@@ -76,6 +79,7 @@ function AccountDetailInner() {
   }
 
   return (
+    <>
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -98,10 +102,16 @@ function AccountDetailInner() {
             <p className="text-sm text-muted-foreground">История операций по счёту</p>
           </div>
         </div>
-        <Button variant="destructive" size="sm" onClick={handleDeleteAccount} disabled={accountTransactions.length > 0}>
-          <Trash2 className="h-4 w-4 mr-2" />
-          Удалить счёт
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-4 w-4 mr-2" />
+            Редактировать
+          </Button>
+          <Button variant="destructive" size="sm" onClick={handleDeleteAccount} disabled={accountTransactions.length > 0}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Удалить счёт
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -181,6 +191,26 @@ function AccountDetailInner() {
         </CardContent>
       </Card>
     </div>
+    <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Редактировать счёт</DialogTitle>
+        </DialogHeader>
+        <AccountForm
+          accountId={id}
+          initialValues={{
+            name: account?.name,
+            type: account?.type as any,
+            balance: account?.balance,
+            currency: account?.currency,
+            accountNumber: account?.accountNumber,
+          }}
+          onSuccess={() => setEditOpen(false)}
+          onCancel={() => setEditOpen(false)}
+        />
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 
