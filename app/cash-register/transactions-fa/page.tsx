@@ -9,6 +9,7 @@ import { Plus, Upload } from "lucide-react"
 import { FinanceProvider } from "@/lib/financeapp/finance-context"
 import { TransactionList } from "@/components/financeapp/transaction-list"
 import { TransactionForm } from "@/components/financeapp/transaction-form"
+import { StatementImport } from "@/components/financeapp/statement-import"
 
 export default function TransactionsFAPage() {
   const [open, setOpen] = useState(false)
@@ -26,6 +27,7 @@ export default function TransactionsFAPage() {
               <Link href="/cash-register/accounts-fa">
                 <Button variant="secondary">Счета (FA)</Button>
               </Link>
+              <StatementImport />
               <Button onClick={() => setOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Новая транзакция
