@@ -51,6 +51,11 @@ export function CashRegisterHeader() {
             Доходы/Расходы (FA)
           </Button>
         </Link>
+        <Link href="/cash-register/accounts-fa">
+          <Button variant="secondary">
+            Счета (FA)
+          </Button>
+        </Link>
         <Button variant="outline">
           <Download className="w-4 h-4 mr-2" />
           Отчет
