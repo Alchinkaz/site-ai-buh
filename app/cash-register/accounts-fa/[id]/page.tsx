@@ -50,8 +50,15 @@ function AccountDetailInner() {
     }
   }
 
-  const totalIncome = accountTransactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0)
-  const totalExpense = accountTransactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0)
+  // Calculate income: direct income + transfers TO this account
+  const directIncome = accountTransactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0)
+  const transferIncome = accountTransactions.filter((t) => t.type === "transfer" && t.toAccountId === id).reduce((sum, t) => sum + t.amount, 0)
+  const totalIncome = directIncome + transferIncome
+
+  // Calculate expense: direct expense + transfers FROM this account
+  const directExpense = accountTransactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0)
+  const transferExpense = accountTransactions.filter((t) => t.type === "transfer" && t.accountId === id).reduce((sum, t) => sum + t.amount, 0)
+  const totalExpense = directExpense + transferExpense
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -132,6 +139,9 @@ function AccountDetailInner() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalIncome, account.currency)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Доходы: {formatCurrency(directIncome, account.currency)} • Переводы: {formatCurrency(transferIncome, account.currency)}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -141,6 +151,9 @@ function AccountDetailInner() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(totalExpense, account.currency)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Расходы: {formatCurrency(directExpense, account.currency)} • Переводы: {formatCurrency(transferExpense, account.currency)}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -177,8 +190,11 @@ function AccountDetailInner() {
                         </TableCell>
                         <TableCell>{category?.name || "-"}</TableCell>
                         <TableCell>{counterparty?.name || "-"}</TableCell>
-                        <TableCell className={cn("text-right font-semibold", { "text-green-600 dark:text-green-400": transaction.type === "income", "text-red-600 dark:text-red-400": transaction.type === "expense" })}>
-                          {transaction.type === "expense" && "-"}
+                        <TableCell className={cn("text-right font-semibold", { 
+                          "text-green-600 dark:text-green-400": transaction.type === "income" || (transaction.type === "transfer" && transaction.toAccountId === id), 
+                          "text-red-600 dark:text-red-400": transaction.type === "expense" || (transaction.type === "transfer" && transaction.accountId === id) 
+                        })}>
+                          {(transaction.type === "expense" || (transaction.type === "transfer" && transaction.accountId === id)) && "-"}
                           {formatCurrency(transaction.amount, transaction.currency)}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{transaction.comment || "-"}</TableCell>
