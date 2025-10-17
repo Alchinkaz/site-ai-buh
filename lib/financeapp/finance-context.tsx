@@ -140,7 +140,62 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }
 
   const updateTransaction = (id: string, updates: Partial<Transaction>) => {
-    setTransactions((prev) => prev.map((transaction) => (transaction.id === id ? { ...transaction, ...updates } : transaction)))
+    const oldTransaction = transactions.find((t) => t.id === id)
+    if (!oldTransaction) return
+
+    // First, reverse the old transaction's effect on account balances
+    if (oldTransaction.type === "transfer" && oldTransaction.toAccountId) {
+      setAccounts((prevAccounts) =>
+        prevAccounts.map((account) => {
+          if (account.id === oldTransaction.accountId) {
+            return { ...account, balance: account.balance + oldTransaction.amount }
+          }
+          if (account.id === oldTransaction.toAccountId) {
+            return { ...account, balance: account.balance - oldTransaction.amount }
+          }
+          return account
+        }),
+      )
+    } else {
+      setAccounts((prevAccounts) =>
+        prevAccounts.map((account) => {
+          if (account.id === oldTransaction.accountId) {
+            const change = oldTransaction.type === "income" ? -oldTransaction.amount : oldTransaction.amount
+            return { ...account, balance: account.balance + change }
+          }
+          return account
+        }),
+      )
+    }
+
+    // Update the transaction
+    const updatedTransaction = { ...oldTransaction, ...updates }
+    setTransactions((prev) => prev.map((transaction) => (transaction.id === id ? updatedTransaction : transaction)))
+
+    // Apply the new transaction's effect on account balances
+    if (updatedTransaction.type === "transfer" && updatedTransaction.toAccountId) {
+      setAccounts((prevAccounts) =>
+        prevAccounts.map((account) => {
+          if (account.id === updatedTransaction.accountId) {
+            return { ...account, balance: account.balance - updatedTransaction.amount }
+          }
+          if (account.id === updatedTransaction.toAccountId) {
+            return { ...account, balance: account.balance + updatedTransaction.amount }
+          }
+          return account
+        }),
+      )
+    } else {
+      setAccounts((prevAccounts) =>
+        prevAccounts.map((account) => {
+          if (account.id === updatedTransaction.accountId) {
+            const change = updatedTransaction.type === "income" ? updatedTransaction.amount : -updatedTransaction.amount
+            return { ...account, balance: account.balance + change }
+          }
+          return account
+        }),
+      )
+    }
   }
 
   const updateInvoice = (id: string, updates: Partial<Invoice>) => {
