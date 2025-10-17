@@ -139,65 +139,125 @@ export function StatementImport() {
 
   // --- Импорт 1CClientBankExchange (.txt) ---
   const CATEGORY_KEYWORDS: Record<string, string[]> = {
-    'Аренда': ['аренда', 'помещение', 'офис'],
-    'Зарплата': ['зарплата', 'оклад', 'премия'],
-    'Налоги': ['налог', 'гос', 'казна'],
-    'Продажа': ['оплата', 'поступление', 'продажа', 'касса'],
-    'Перевод': ['перевод', 'текущий счет'],
+    "Продажи Kaspi": ["kaspi.kz", "продажи", "kaspi qr"],
+    "Оплата от клиента": ["оплата", "поступление", "услуги", "мониторинг", "видеонаблюдение", "камера", "договор"],
+    "Налоги и сборы": ["налог", "гос", "казначейство"],
+    "Перевод между счетами": ["своего счета", "перевод собственных средств"],
+    "Платеж поставщику": ["оплата", "счет на оплату", "товар", "услуги", "лизинг", "поставка"],
+    "Kaspi Pay комиссия": ["информационно-технологические услуги", "kaspi pay"],
+    "Бензин / топливо": ["гбо", "топливо", "нефть", "ai", "ai-92", "ai-95"],
+    "Прочее": []
   }
 
-  function detectCategoryByText(text: string): string | undefined {
+  function detectCategoryByText(text: string): string {
     const t = (text || '').toLowerCase()
     for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
       if (words.some((w) => t.includes(w))) return cat
     }
-    return undefined
+    return "Прочее"
   }
 
   const parse1CClientBankExchangeTxt = (content: string) => {
     const results: any[] = []
-    const sections = content.split(/\n?СекцияДокумент=/).slice(1)
-    sections.forEach((block) => {
-      const dateMatch = block.match(/ДатаДокумента=(.+)/)
-      const incomeMatch = block.match(/СуммаДоход=(.+)/)
-      const expenseMatch = block.match(/СуммаРасход=(.+)/)
-      const purposeMatch = block.match(/НазначениеПлатежа=(.+)/)
+    // Разбиваем по операциям
+    const blocks = content.split(/СекцияДокумент=/i).slice(1)
+    
+    blocks.forEach((block) => {
+      try {
+        // Дата (пробуем разные варианты)
+        let dateMatch = block.match(/ДатаОперации=(.+)/i)
+        if (!dateMatch) {
+          dateMatch = block.match(/ДатаДокумента=(.+)/i)
+        }
+        const date = dateMatch?.[1]?.trim() || ''
 
-      const date = dateMatch?.[1]?.trim() || ''
-      const purpose = purposeMatch?.[1]?.trim() || ''
+        // Сумма и тип операции (пробуем разные варианты)
+        const incomeMatch = block.match(/СуммаПриход=(.+)/i)
+        const expenseMatch = block.match(/СуммаРасход=(.+)/i)
+        const incomeAlt = block.match(/СуммаДоход=(.+)/i) // Forte вариант
+        const sumMatch = block.match(/Сумма=(.+)/i)
 
-      let amount = 0
-      let type: 'income' | 'expense' | undefined
-      if (incomeMatch) {
-        amount = parseFloat(incomeMatch[1].replace(',', '.'))
-        type = 'income'
-      } else if (expenseMatch) {
-        amount = parseFloat(expenseMatch[1].replace(',', '.'))
-        type = 'expense'
+        let type: 'income' | 'expense' | undefined
+        let amount = 0
+
+        if (incomeMatch || incomeAlt) {
+          const amountStr = (incomeMatch || incomeAlt)![1]
+          amount = parseFloat(amountStr.replace(',', '.'))
+          type = 'income'
+        } else if (expenseMatch) {
+          const amountStr = expenseMatch[1]
+          amount = parseFloat(amountStr.replace(',', '.'))
+          type = 'expense'
+        } else if (sumMatch) {
+          const raw = sumMatch[1].trim().replace(',', '.')
+          if (/^\d+\.?\d*$/.test(raw)) {
+            const payer = block.match(/ПлательщикНаименование=(.+)/i)
+            if (payer && /alchin/i.test(payer[1])) {
+              type = 'expense'
+              amount = parseFloat(raw)
+            } else {
+              type = 'income'
+              amount = parseFloat(raw)
+            }
+          } else {
+            return // пропускаем если не число
+          }
+        }
+
+        if (!type || !date || !amount) return
+
+        // Контрагент и назначение
+        const payer = block.match(/ПлательщикНаименование=(.+)/i)
+        const receiver = block.match(/ПолучательНаименование=(.+)/i)
+        const purpose = block.match(/НазначениеПлатежа=(.+)/i)
+
+        const payerName = payer?.[1]?.trim() || ''
+        const receiverName = receiver?.[1]?.trim() || ''
+        const purposeText = purpose?.[1]?.trim() || ''
+
+        // Определяем контрагента: для дохода — плательщик, для расхода — получатель
+        const counterpartyName = type === 'income' ? payerName : receiverName
+
+        const account = accounts.find((a) => a.id === selectedAccountId)
+        if (!account) return
+
+        // Определяем категорию
+        let categoryName = detectCategoryByText(purposeText)
+
+        let category = categories.find((c) => c.name.toLowerCase() === categoryName.toLowerCase())
+        if (!category) {
+          category = addCategory({ 
+            name: categoryName, 
+            type, 
+            color: type === 'income' ? '#10B981' : '#EF4444' 
+          })
+        }
+
+        // Создаем контрагента если нужно
+        let counterparty = counterparties.find((cp) => cp.name.toLowerCase() === counterpartyName.toLowerCase())
+        if (!counterparty && counterpartyName) {
+          counterparty = addCounterparty({ 
+            name: counterpartyName, 
+            type: 'organization', 
+            contactInfo: '' 
+          })
+        }
+
+        results.push({
+          accountId: account.id,
+          amount: Math.abs(amount),
+          type,
+          date: new Date(date.replace(/(\d{2})\.(\d{2})\.(\d{4})/, '$3-$2-$1')).toISOString().split('T')[0],
+          comment: purposeText,
+          categoryId: category?.id || '',
+          counterpartyId: counterparty?.id || '',
+          currency: account.currency,
+        })
+      } catch (error) {
+        console.error('Error parsing 1C block:', error)
       }
-      if (!type || !date || !amount) return
-
-      const account = accounts.find((a) => a.id === selectedAccountId)
-      if (!account) return []
-
-      let categoryName = detectCategoryByText(purpose)
-      if (!categoryName) categoryName = type === 'income' ? 'Поступления' : 'Списания'
-      let category = categories.find((c) => c.name.toLowerCase() === categoryName!.toLowerCase())
-      if (!category) category = addCategory({ name: categoryName!, type, color: type === 'income' ? '#10B981' : '#EF4444' })
-
-      const comment = categoryName ? '' : purpose
-
-      results.push({
-        accountId: account.id,
-        amount: Math.abs(amount),
-        type,
-        date,
-        comment,
-        categoryId: category?.id || '',
-        counterpartyId: '',
-        currency: account.currency,
-      })
     })
+    
     return results
   }
 
