@@ -68,7 +68,7 @@ export function AccountCard({ account, transactionCount = 0 }: AccountCardProps)
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Транзакций: {transactionCount}</span>
             <Button variant="link" size="sm" asChild className="h-auto p-0">
-              <Link href={`/accounts/${account.id}`}>Подробнее →</Link>
+              <Link href={`/cash-register/accounts-fa/${account.id}`}>Подробнее →</Link>
             </Button>
           </div>
         </div>
