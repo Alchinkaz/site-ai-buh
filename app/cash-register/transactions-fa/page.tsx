@@ -1,0 +1,47 @@
+"use client"
+
+import { useState } from "react"
+import { DashboardLayout } from "@/components/dashboard-layout"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Plus } from "lucide-react"
+import { FinanceProvider } from "@/lib/financeapp/finance-context"
+import { TransactionList } from "@/components/financeapp/transaction-list"
+import { TransactionForm } from "@/components/financeapp/transaction-form"
+
+export default function TransactionsFAPage() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <DashboardLayout>
+      <FinanceProvider>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Транзакции (FinanceApp)</h1>
+              <p className="text-muted-foreground mt-2">Доходы, расходы и переводы между счетами</p>
+            </div>
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Новая транзакция
+            </Button>
+          </div>
+
+          <TransactionList />
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Новая транзакция</DialogTitle>
+                <DialogDescription>Добавьте доход, расход или перевод</DialogDescription>
+              </DialogHeader>
+              <TransactionForm onSuccess={() => setOpen(false)} onCancel={() => setOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        </div>
+      </FinanceProvider>
+    </DashboardLayout>
+  )
+}
+
+

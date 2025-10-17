@@ -46,6 +46,11 @@ export function CashRegisterHeader() {
             )}
           </DialogContent>
         </Dialog>
+        <Link href="/cash-register/transactions-fa">
+          <Button>
+            Доходы/Расходы (FA)
+          </Button>
+        </Link>
         <Button variant="outline">
           <Download className="w-4 h-4 mr-2" />
           Отчет
