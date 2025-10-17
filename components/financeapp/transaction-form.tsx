@@ -14,19 +14,20 @@ import { toast } from "sonner"
 interface TransactionFormProps {
   onSuccess?: () => void
   onCancel?: () => void
+  transaction?: any
 }
 
-export function TransactionForm({ onSuccess, onCancel }: TransactionFormProps) {
-  const { accounts, categories, counterparties, addTransaction } = useFinance()
+export function TransactionForm({ onSuccess, onCancel, transaction }: TransactionFormProps) {
+  const { accounts, categories, counterparties, addTransaction, updateTransaction } = useFinance()
 
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
-  const [amount, setAmount] = useState("")
-  const [type, setType] = useState<TransactionType>("expense")
-  const [accountId, setAccountId] = useState("")
-  const [toAccountId, setToAccountId] = useState("")
-  const [categoryId, setCategoryId] = useState("")
-  const [counterpartyId, setCounterpartyId] = useState("")
-  const [comment, setComment] = useState("")
+  const [date, setDate] = useState(transaction?.date ? transaction.date.split("T")[0] : new Date().toISOString().split("T")[0])
+  const [amount, setAmount] = useState(transaction?.amount ? String(transaction.amount) : "")
+  const [type, setType] = useState<TransactionType>(transaction?.type || "expense")
+  const [accountId, setAccountId] = useState(transaction?.accountId || "")
+  const [toAccountId, setToAccountId] = useState(transaction?.toAccountId || "")
+  const [categoryId, setCategoryId] = useState(transaction?.categoryId || "")
+  const [counterpartyId, setCounterpartyId] = useState(transaction?.counterpartyId || "")
+  const [comment, setComment] = useState(transaction?.comment || "")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,7 +63,7 @@ export function TransactionForm({ onSuccess, onCancel }: TransactionFormProps) {
 
     setIsSubmitting(true)
     try {
-      addTransaction({
+      const payload = {
         date,
         amount: amountNum,
         currency: "KZT",
@@ -72,18 +73,26 @@ export function TransactionForm({ onSuccess, onCancel }: TransactionFormProps) {
         categoryId: type === "transfer" ? "transfer-category" : categoryId,
         counterpartyId: counterpartyId || undefined,
         comment: comment.trim() || undefined,
-      })
+      }
 
-      toast.success(type === "transfer" ? "Перевод выполнен" : "Транзакция добавлена")
+      if (transaction) {
+        updateTransaction(transaction.id, payload)
+        toast.success("Транзакция обновлена")
+      } else {
+        addTransaction(payload)
+        toast.success(type === "transfer" ? "Перевод выполнен" : "Транзакция добавлена")
+      }
 
-      setDate(new Date().toISOString().split("T")[0])
-      setAmount("")
-      setType("expense")
-      setAccountId("")
-      setToAccountId("")
-      setCategoryId("")
-      setCounterpartyId("")
-      setComment("")
+      if (!transaction) {
+        setDate(new Date().toISOString().split("T")[0])
+        setAmount("")
+        setType("expense")
+        setAccountId("")
+        setToAccountId("")
+        setCategoryId("")
+        setCounterpartyId("")
+        setComment("")
+      }
 
       onSuccess?.()
     } catch (error) {
@@ -199,7 +208,7 @@ export function TransactionForm({ onSuccess, onCancel }: TransactionFormProps) {
       </div>
 
       <div className="flex gap-3 pt-4">
-        <Button type="submit" className="flex-1" disabled={isSubmitting}>{isSubmitting ? "Сохранение..." : type === "transfer" ? "Выполнить перевод" : "Сохранить транзакцию"}</Button>
+        <Button type="submit" className="flex-1" disabled={isSubmitting}>{isSubmitting ? "Сохранение..." : transaction ? "Обновить транзакцию" : type === "transfer" ? "Выполнить перевод" : "Сохранить транзакцию"}</Button>
         {onCancel && (<Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>Отмена</Button>)}
       </div>
     </form>

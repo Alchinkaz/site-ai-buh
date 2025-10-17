@@ -9,7 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Search, Filter, ArrowRight } from "lucide-react"
+import { Trash2, Search, Filter, ArrowRight, Pencil } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { TransactionForm } from "@/components/financeapp/transaction-form"
 import { cn } from "@/lib/utils"
 import { useToast } from "sonner"
 
@@ -18,6 +20,8 @@ export function TransactionList() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [filterCategory, setFilterCategory] = useState<string>("all")
+  const [editOpen, setEditOpen] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<any>(null)
 
   const filteredTransactions = useMemo(() => {
     return transactions
@@ -43,6 +47,30 @@ export function TransactionList() {
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [transactions, accounts, categories, counterparties, searchTerm, filterType, filterCategory])
+
+  const handleDelete = (id: string) => {
+    if (confirm("Вы уверены, что хотите удалить эту транзакцию? Баланс счёта будет скорректирован.")) {
+      try {
+        deleteTransaction(id)
+        toast({
+          title: "Успешно",
+          description: "Транзакция удалена",
+        })
+      } catch (error) {
+        console.error("Error deleting transaction:", error)
+        toast({
+          title: "Ошибка",
+          description: "Не удалось удалить транзакцию",
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
+  const handleEdit = (transaction: any) => {
+    setEditingTransaction(transaction)
+    setEditOpen(true)
+  }
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -71,6 +99,7 @@ export function TransactionList() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -199,9 +228,24 @@ export function TransactionList() {
                         {transaction.comment || "-"}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" className="hover:bg-destructive/10">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(transaction)}
+                            className="hover:bg-blue-100"
+                          >
+                            <Pencil className="h-4 w-4 text-blue-600" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(transaction.id)}
+                            className="hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -212,6 +256,21 @@ export function TransactionList() {
         )}
       </CardContent>
     </Card>
+    <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Редактировать транзакцию</DialogTitle>
+        </DialogHeader>
+        {editingTransaction && (
+          <TransactionForm
+            transaction={editingTransaction}
+            onSuccess={() => setEditOpen(false)}
+            onCancel={() => setEditOpen(false)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 
