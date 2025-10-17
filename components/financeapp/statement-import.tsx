@@ -138,23 +138,98 @@ export function StatementImport() {
     return []
   }
 
+  // --- Импорт 1CClientBankExchange (.txt) ---
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    'Аренда': ['аренда', 'помещение', 'офис'],
+    'Зарплата': ['зарплата', 'оклад', 'премия'],
+    'Налоги': ['налог', 'гос', 'казна'],
+    'Продажа': ['оплата', 'поступление', 'продажа', 'касса'],
+    'Перевод': ['перевод', 'текущий счет'],
+  }
+
+  function detectCategoryByText(text: string): string | undefined {
+    const t = (text || '').toLowerCase()
+    for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
+      if (words.some((w) => t.includes(w))) return cat
+    }
+    return undefined
+  }
+
+  const parse1CClientBankExchangeTxt = (content: string) => {
+    const results: any[] = []
+    const sections = content.split(/\n?СекцияДокумент=/).slice(1)
+    sections.forEach((block) => {
+      const dateMatch = block.match(/ДатаДокумента=(.+)/)
+      const incomeMatch = block.match(/СуммаДоход=(.+)/)
+      const expenseMatch = block.match(/СуммаРасход=(.+)/)
+      const purposeMatch = block.match(/НазначениеПлатежа=(.+)/)
+
+      const date = dateMatch?.[1]?.trim() || ''
+      const purpose = purposeMatch?.[1]?.trim() || ''
+
+      let amount = 0
+      let type: 'income' | 'expense' | undefined
+      if (incomeMatch) {
+        amount = parseFloat(incomeMatch[1].replace(',', '.'))
+        type = 'income'
+      } else if (expenseMatch) {
+        amount = parseFloat(expenseMatch[1].replace(',', '.'))
+        type = 'expense'
+      }
+      if (!type || !date || !amount) return
+
+      let account = accounts.find((a) => (bankName ? a.name.toLowerCase().includes(bankName.toLowerCase()) : true))
+      if (!account) account = addAccount({ name: bankName || '1C Bank', type: 'bank', balance: 0, currency: 'KZT' })
+
+      let categoryName = detectCategoryByText(purpose)
+      if (!categoryName) categoryName = type === 'income' ? 'Поступления' : 'Списания'
+      let category = categories.find((c) => c.name.toLowerCase() === categoryName!.toLowerCase())
+      if (!category) category = addCategory({ name: categoryName!, type, color: type === 'income' ? '#10B981' : '#EF4444' })
+
+      const comment = categoryName ? '' : purpose
+
+      results.push({
+        accountId: account.id,
+        amount: Math.abs(amount),
+        type,
+        date,
+        comment,
+        categoryId: category?.id || '',
+        counterpartyId: '',
+        currency: account.currency,
+      })
+    })
+    return results
+  }
+
   const handleImport = async () => {
     if (!file) return
     setStatus('processing')
     setMessage('Обработка файла...')
     try {
-      let rows: any[] = []
+      let txs: any[] = []
       const ext = file.name.split('.').pop()?.toLowerCase()
-      if (ext === 'csv') {
+      if (ext === 'txt') {
         const text = await file.text()
-        rows = Papa.parse(text, { header: true }).data as any[]
-      } else {
-        const buf = await file.arrayBuffer()
-        const wb = XLSX.read(buf, { type: 'array' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        rows = XLSX.utils.sheet_to_json(ws)
+        // если это 1CClientBankExchange — парсим напрямую
+        if (/1CClientBankExchange/i.test(text) || /СекцияДокумент=/i.test(text)) {
+          txs = parse1CClientBankExchangeTxt(text)
+        }
+      } 
+      if (txs.length === 0) {
+        // fallback: CSV/XLSX
+        let rows: any[] = []
+        if (ext === 'csv') {
+          const text = await file.text()
+          rows = Papa.parse(text, { header: true }).data as any[]
+        } else {
+          const buf = await file.arrayBuffer()
+          const wb = XLSX.read(buf, { type: 'array' })
+          const ws = wb.Sheets[wb.SheetNames[0]]
+          rows = XLSX.utils.sheet_to_json(ws)
+        }
+        txs = process(rows)
       }
-      const txs = process(rows)
       txs.forEach((t) => addTransaction(t))
       setStatus('success')
       setMessage(`Импортировано ${txs.length} операций`)
@@ -183,7 +258,7 @@ export function StatementImport() {
           </div>
           <div>
             <Label htmlFor="statement-file">Файл выписки</Label>
-            <Input id="statement-file" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="mt-2" />
+            <Input id="statement-file" type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileSelect} className="mt-2" />
           </div>
           {status === 'processing' && (
             <div className="flex items-center gap-2 text-blue-600">
