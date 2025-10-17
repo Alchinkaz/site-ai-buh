@@ -5,10 +5,11 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Plus } from "lucide-react"
+import { Plus, Upload } from "lucide-react"
 import { FinanceProvider } from "@/lib/financeapp/finance-context"
 import { TransactionList } from "@/components/financeapp/transaction-list"
 import { TransactionForm } from "@/components/financeapp/transaction-form"
+import { ImportExport } from "@/components/financeapp/import-export"
 
 export default function TransactionsFAPage() {
   const [open, setOpen] = useState(false)
@@ -26,6 +27,7 @@ export default function TransactionsFAPage() {
               <Link href="/cash-register/accounts-fa">
                 <Button variant="secondary">Счета (FA)</Button>
               </Link>
+              <ImportExport />
               <Button onClick={() => setOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Новая транзакция
