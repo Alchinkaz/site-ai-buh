@@ -41,12 +41,26 @@ export function ImportExport({ onImportComplete }: ImportExportProps) {
     }
   }
 
-  const processImportData = (data: any[]) => {
+  function detectFormat(rows: any[]): "forte" | "kaspi" | "1c" | "generic" {
+    if (!rows || rows.length === 0) return "generic"
+    const row = rows[0]
+    const headers = Object.keys(row || {}).map((h) => h.toLowerCase())
+    if (headers.some((h) => h.includes("күні/дата") || h.includes("дебет / дебет") || h.includes("кредит / кредит") || h.includes("назначение платежа"))) {
+      return "forte"
+    }
+    if (headers.some((h) => h.includes("дата операции") || h.includes("сумма операции") || h.includes("сумма списания") || h.includes("сумма пополнения") || h.includes("описание операции") || h.includes("категория"))) {
+      return "kaspi"
+    }
+    if (headers.some((h) => h === "дата" || h.includes("дебет") || h.includes("кредит") || h.includes("контрагент") || h.includes("назначение"))) {
+      return "1c"
+    }
+    return "generic"
+  }
+
+  const parseForte = (data: any[]) => {
     const processedTransactions: any[] = []
-    
     data.forEach((row, index) => {
       try {
-        // Парсинг банковской выписки ForteBank
         const date = row['Күні/Дата'] || row['Дата'] || row['Date'] || row['date']
         const documentNumber = row['Құжат Нөмірі/Номер документа'] || row['Номер документа'] || row['Document Number'] || ''
         const sender = row['Жіберуші (Атауы, БСК, ЖСК, БСН/ЖСН) / Отправитель (Наименование, БИК, ИИК, БИН/ИИН)'] || row['Отправитель'] || row['Sender'] || ''
@@ -141,6 +155,177 @@ export function ImportExport({ onImportComplete }: ImportExportProps) {
       }
     })
 
+    return processedTransactions
+  }
+
+  const parseKaspi = (data: any[]) => {
+    const processedTransactions: any[] = []
+    data.forEach((row, index) => {
+      try {
+        const date = row['Дата операции'] || row['Дата'] || row['date'] || row['Date']
+        const description = row['Описание операции'] || row['Описание'] || row['Description'] || ''
+        const categoryNameRaw = row['Категория'] || row['category'] || ''
+        // Сумма может быть в одном поле со знаком либо в двух полях (списание/пополнение)
+        const amountSigned = parseFloat((row['Сумма'] || row['Сумма операции'] || '').toString().replace(/[^\d.,-]/g, '').replace(',', '.'))
+        const debitKaspi = parseFloat((row['Сумма списания'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
+        const creditKaspi = parseFloat((row['Сумма пополнения'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
+
+        let amount = 0
+        let type: 'income' | 'expense' = 'expense'
+        if (!isNaN(amountSigned) && amountSigned !== 0) {
+          amount = Math.abs(amountSigned)
+          type = amountSigned > 0 ? 'income' : 'expense'
+        } else if (creditKaspi > 0 || debitKaspi > 0) {
+          amount = creditKaspi > 0 ? creditKaspi : debitKaspi
+          type = creditKaspi > 0 ? 'income' : 'expense'
+        } else {
+          return
+        }
+
+        if (!date || !amount) return
+
+        // Находим или создаем счет Kaspi
+        let account = accounts.find(a => a.name.toLowerCase().includes('kaspi') || a.type === 'kaspi')
+        if (!account) {
+          account = addAccount({
+            name: 'Kaspi',
+            type: 'kaspi',
+            balance: 0,
+            currency: 'KZT'
+          })
+        }
+
+        // Категория
+        let categoryName = categoryNameRaw || (type === 'income' ? 'Поступления' : 'Списания')
+        let category = categories.find(c => c.name.toLowerCase() === String(categoryName).toLowerCase())
+        if (!category) {
+          category = addCategory({ name: categoryName, type, color: type === 'income' ? '#10B981' : '#EF4444' })
+        }
+
+        const transaction = {
+          accountId: account.id,
+          amount,
+          type,
+          date: new Date(date).toISOString().split('T')[0],
+          comment: description,
+          categoryId: category?.id || '',
+          counterpartyId: '',
+          currency: account.currency
+        }
+
+        processedTransactions.push(transaction)
+      } catch (error) {
+        console.error(`Ошибка обработки строки (Kaspi) ${index + 1}:`, error)
+      }
+    })
+    return processedTransactions
+  }
+
+  const parse1C = (data: any[]) => {
+    const processedTransactions: any[] = []
+    data.forEach((row, index) => {
+      try {
+        const date = row['Дата'] || row['date'] || row['Date']
+        const debit = parseFloat((row['Дебет'] || row['Сумма дебета'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
+        const credit = parseFloat((row['Кредит'] || row['Сумма кредита'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
+        const description = row['Назначение платежа'] || row['Комментарий'] || row['Описание'] || ''
+        const counterpartyName = row['Контрагент'] || row['Организация'] || ''
+
+        let amount = 0
+        let type: 'income' | 'expense' = 'expense'
+        if (debit > 0 && credit === 0) {
+          amount = debit
+          type = 'expense'
+        } else if (credit > 0 && debit === 0) {
+          amount = credit
+          type = 'income'
+        } else {
+          return
+        }
+
+        if (!date || !amount) return
+
+        // Счет по умолчанию для 1С
+        let account = accounts.find(a => a.name.toLowerCase().includes('1c'))
+        if (!account) {
+          account = addAccount({ name: '1C Bank', type: 'bank', balance: 0, currency: 'KZT' })
+        }
+
+        // Категория
+        const categoryName = type === 'income' ? 'Поступления (1C)' : 'Списания (1C)'
+        let category = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+        if (!category) {
+          category = addCategory({ name: categoryName, type, color: type === 'income' ? '#10B981' : '#EF4444' })
+        }
+
+        // Контрагент
+        let counterparty = counterparties.find(cp => cp.name.toLowerCase() === String(counterpartyName).toLowerCase())
+        if (!counterparty && counterpartyName) {
+          counterparty = addCounterparty({ name: counterpartyName, type: 'organization', contactInfo: '' })
+        }
+
+        processedTransactions.push({
+          accountId: account.id,
+          amount,
+          type,
+          date: new Date(date).toISOString().split('T')[0],
+          comment: description,
+          categoryId: category?.id || '',
+          counterpartyId: counterparty?.id || '',
+          currency: account.currency,
+        })
+      } catch (error) {
+        console.error(`Ошибка обработки строки (1C) ${index + 1}:`, error)
+      }
+    })
+    return processedTransactions
+  }
+
+  const processImportData = (data: any[]) => {
+    const format = detectFormat(data)
+    if (format === 'forte') return parseForte(data)
+    if (format === 'kaspi') return parseKaspi(data)
+    if (format === '1c') return parse1C(data)
+    // generic: пробуем как простой формат
+    const processedTransactions: any[] = []
+    data.forEach((row, index) => {
+      try {
+        const date = row['Дата'] || row['date'] || row['Date']
+        const amountRaw = row['Сумма'] || row['amount'] || row['Amount']
+        const typeRaw = (row['Тип'] || row['type'] || '').toString().toLowerCase()
+        const description = row['Описание'] || row['Description'] || ''
+        const accountName = row['Счет'] || row['Account'] || ''
+        const categoryName = row['Категория'] || row['Category'] || ''
+
+        if (!date || !amountRaw) return
+        const amountNum = parseFloat(String(amountRaw).replace(/[^\d.,-]/g, '').replace(',', '.'))
+        const type: 'income' | 'expense' = amountNum >= 0 ? (typeRaw === 'expense' ? 'expense' : 'income') : 'expense'
+
+        let account = accounts.find(a => a.name.toLowerCase() === String(accountName).toLowerCase())
+        if (!account && accountName) {
+          account = addAccount({ name: String(accountName), type: 'bank', balance: 0, currency: 'KZT' })
+        }
+        if (!account) return
+
+        let category = categories.find(c => c.name.toLowerCase() === String(categoryName).toLowerCase())
+        if (!category && categoryName) {
+          category = addCategory({ name: String(categoryName), type, color: type === 'income' ? '#10B981' : '#EF4444' })
+        }
+
+        processedTransactions.push({
+          accountId: account.id,
+          amount: Math.abs(amountNum),
+          type,
+          date: new Date(date).toISOString().split('T')[0],
+          comment: description,
+          categoryId: category?.id || '',
+          counterpartyId: '',
+          currency: account.currency,
+        })
+      } catch (e) {
+        console.error(`Ошибка generic импорта строки ${index + 1}:`, e)
+      }
+    })
     return processedTransactions
   }
 
