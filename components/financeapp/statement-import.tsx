@@ -157,6 +157,64 @@ export function StatementImport() {
     return "Прочее"
   }
 
+  // Функция для сопоставления банка из выписки с существующими счетами
+  function findMatchingAccount(bankName: string): string | null {
+    if (!bankName || bankName.trim() === '') return null
+    
+    const bankLower = bankName.toLowerCase()
+    
+    // Маппинг банков на названия счетов
+    const bankMappings: { [key: string]: string[] } = {
+      'kaspi': ['kaspi', 'kaspi bank', 'kaspi pay'],
+      'forte': ['forte', 'forte bank', 'fortebank'],
+      'halyk': ['halyk', 'halyk bank', 'halykbank'],
+      'centercredit': ['centercredit', 'center credit', 'centercredit bank'],
+      'jysan': ['jysan', 'jysan bank'],
+      'homecredit': ['homecredit', 'home credit', 'homecredit bank'],
+      'tengri': ['tengri', 'tengri bank'],
+      'altyn': ['altyn', 'altyn bank'],
+      'sberbank': ['sberbank', 'sber bank'],
+      'vtb': ['vtb', 'vtb bank'],
+      'raiffeisen': ['raiffeisen', 'raiffeisen bank'],
+      'citibank': ['citibank', 'citi bank'],
+      'hsbc': ['hsbc'],
+      'demir': ['demir', 'demir bank'],
+      'first heartland': ['first heartland', 'first heartland jysan'],
+      'europharma': ['europharma', 'europharma bank'],
+      'kz': ['kz', 'kz bank'],
+      'kassa nova': ['kassa nova', 'kassa nova bank'],
+      'kzpost': ['kzpost', 'kzpost bank'],
+      'otp': ['otp', 'otp bank'],
+      'qazkom': ['qazkom', 'qazkom bank'],
+      'shinhan': ['shinhan', 'shinhan bank'],
+      'turan': ['turan', 'turan bank'],
+      'unistream': ['unistream', 'unistream bank'],
+      'zaman': ['zaman', 'zaman bank']
+    }
+    
+    // Ищем совпадения в маппинге
+    for (const [bankKey, variations] of Object.entries(bankMappings)) {
+      if (variations.some(variation => bankLower.includes(variation))) {
+        // Ищем счет с похожим названием
+        const matchingAccount = accounts.find(account => 
+          account.name.toLowerCase().includes(bankKey) || 
+          variations.some(variation => account.name.toLowerCase().includes(variation))
+        )
+        if (matchingAccount) {
+          return matchingAccount.name
+        }
+      }
+    }
+    
+    // Если точного совпадения нет, ищем частичные совпадения
+    const partialMatch = accounts.find(account => {
+      const accountName = account.name.toLowerCase()
+      return bankLower.includes(accountName) || accountName.includes(bankLower)
+    })
+    
+    return partialMatch ? partialMatch.name : null
+  }
+
   const parse1CClientBankExchangeTxt = (content: string) => {
     const results: any[] = []
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
@@ -326,6 +384,8 @@ export function StatementImport() {
       }
       // Собираем информацию о банках для подсказки
       const bankNames = new Set<string>()
+      const selectedAccount = accounts.find(a => a.id === selectedAccountId)
+      
       txs.forEach((tx) => {
         if (tx.bankName && tx.bankName.trim() !== '') {
           bankNames.add(tx.bankName)
@@ -334,10 +394,22 @@ export function StatementImport() {
       })
       
       setStatus('success')
+      
+      // Проверяем соответствие выбранного счета и банка выписки
+      let warningMessage = ''
+      if (bankNames.size > 0 && selectedAccount) {
+        const bankName = Array.from(bankNames)[0] // Берем первый банк
+        const suggestedAccount = findMatchingAccount(bankName)
+        
+        if (suggestedAccount && suggestedAccount.toLowerCase() !== selectedAccount.name.toLowerCase()) {
+          warningMessage = `\n\n⚠️ Внимание: Выбран счет "${selectedAccount.name}", но выписка от банка "${bankName}". Рекомендуется выбрать счет "${suggestedAccount}".`
+        }
+      }
+      
       const bankInfo = bankNames.size > 0 
         ? `\n\nБанк выписки: ${Array.from(bankNames).join(', ')}`
         : ''
-      setMessage(`Импортировано ${txs.length} операций${bankInfo}`)
+      setMessage(`Импортировано ${txs.length} операций${bankInfo}${warningMessage}`)
     } catch (e: any) {
       setStatus('error')
       setMessage(e?.message || 'Ошибка импорта')
