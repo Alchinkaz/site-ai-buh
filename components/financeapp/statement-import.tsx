@@ -56,7 +56,7 @@ export function StatementImport() {
         else return
         if (!date || !amount) return
 
-        const account = accounts.find(a => a.id === selectedAccountId)
+        const account = accounts.find(a => a.id === selectedAccountId) || accounts.find(a => a.type === 'bank') || accounts[0]
         if (!account) return
 
         let categoryName = type === 'income' ? 'Поступления' : 'Списания'
@@ -95,7 +95,7 @@ export function StatementImport() {
       if (!isNaN(amountSigned) && amountSigned !== 0) { amount = Math.abs(amountSigned); type = amountSigned > 0 ? 'income' : 'expense' }
       else if (creditKaspi > 0 || debitKaspi > 0) { amount = creditKaspi > 0 ? creditKaspi : debitKaspi; type = creditKaspi > 0 ? 'income' : 'expense' } else return
       if (!date || !amount) return
-      const account = accounts.find(a => a.id === selectedAccountId)
+      const account = accounts.find(a => a.id === selectedAccountId) || accounts.find(a => a.type === 'bank') || accounts[0]
       if (!account) return
       const catName = type === 'income' ? 'Поступления (Kaspi)' : 'Списания (Kaspi)'
       let category = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
@@ -117,7 +117,7 @@ export function StatementImport() {
       let type: 'income' | 'expense' = 'expense'
       if (debit > 0 && credit === 0) { amount = debit; type = 'expense' } else if (credit > 0 && debit === 0) { amount = credit; type = 'income' } else return
       if (!date || !amount) return
-      const account = accounts.find(a => a.id === selectedAccountId)
+      const account = accounts.find(a => a.id === selectedAccountId) || accounts.find(a => a.type === 'bank') || accounts[0]
       if (!account) return
       const catName = type === 'income' ? 'Поступления (1C)' : 'Списания (1C)'
       let category = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
@@ -461,7 +461,7 @@ export function StatementImport() {
             </Alert>
           )}
           <div className="flex gap-2">
-            <Button onClick={handleImport} disabled={!file || !selectedAccountId || status === 'processing'}>Импортировать</Button>
+            <Button onClick={handleImport} disabled={!file || status === 'processing'}>Импортировать</Button>
             <Button variant="outline" onClick={() => setOpen(false)}>Закрыть</Button>
           </div>
         </div>
