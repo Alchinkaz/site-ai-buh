@@ -212,13 +212,24 @@ export function StatementImport() {
         const payer = block.match(/ПлательщикНаименование=(.+)/i)
         const receiver = block.match(/ПолучательНаименование=(.+)/i)
         const purpose = block.match(/НазначениеПлатежа=(.+)/i)
+        
+        // Банковские данные
+        const payerBank = block.match(/ПлательщикБанкНаименование=(.+)/i)
+        const receiverBank = block.match(/ПолучательБанкНаименование=(.+)/i)
 
         const payerName = payer?.[1]?.trim() || ''
         const receiverName = receiver?.[1]?.trim() || ''
         const purposeText = purpose?.[1]?.trim() || ''
+        const payerBankName = payerBank?.[1]?.trim() || ''
+        const receiverBankName = receiverBank?.[1]?.trim() || ''
 
         // Определяем контрагента: для дохода — плательщик, для расхода — получатель
         const counterpartyName = type === 'income' ? payerName : receiverName
+        
+        // Определяем банк на основе направления платежа
+        // Если доход (кто-то отправил нам) - берем банк получателя (наш банк)
+        // Если расход (мы отправили кому-то) - берем банк плательщика (наш банк)
+        const bankName = type === 'income' ? receiverBankName : payerBankName
 
         // Исключаем записи без контрагента или с пустыми полями
         if (!counterpartyName || counterpartyName.trim() === '' || counterpartyName === '-') {
@@ -275,6 +286,7 @@ export function StatementImport() {
           categoryId: category?.id || '',
           counterpartyId: counterparty?.id || '',
           currency: account.currency,
+          bankName: bankName, // Добавляем информацию о банке
         })
       } catch (error) {
         console.error('Error parsing 1C block:', error)
@@ -312,9 +324,20 @@ export function StatementImport() {
         }
         txs = process(rows)
       }
-      txs.forEach((t) => addTransaction(t))
+      // Собираем информацию о банках для подсказки
+      const bankNames = new Set<string>()
+      txs.forEach((tx) => {
+        if (tx.bankName && tx.bankName.trim() !== '') {
+          bankNames.add(tx.bankName)
+        }
+        addTransaction(tx)
+      })
+      
       setStatus('success')
-      setMessage(`Импортировано ${txs.length} операций`)
+      const bankInfo = bankNames.size > 0 
+        ? `\n\nБанк выписки: ${Array.from(bankNames).join(', ')}`
+        : ''
+      setMessage(`Импортировано ${txs.length} операций${bankInfo}`)
     } catch (e: any) {
       setStatus('error')
       setMessage(e?.message || 'Ошибка импорта')
