@@ -59,8 +59,8 @@ def parse_1c_file(text: str) -> list[dict]:
         purpose_text = purpose.group(1).strip() if purpose else ""
 
         # Создаем уникальный ключ для проверки дубликатов
-        # Используем комбинацию даты, суммы, контрагента и назначения
-        transaction_key = f"{date}_{amount}_{counterparty}_{purpose_text}"
+        # Используем только дату, сумму и контрагента (без назначения, так как оно может отличаться)
+        transaction_key = f"{date}_{amount}_{counterparty}"
         
         # Проверяем, не встречалась ли уже такая транзакция
         if transaction_key in seen_transactions:
