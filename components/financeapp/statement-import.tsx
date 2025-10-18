@@ -182,6 +182,31 @@ export function StatementImport() {
     return matchingAccount ? matchingAccount.name : null
   }
 
+  // Функция для поиска счета по ИИК (возвращает объект счета)
+  function findAccountByIIK(accountIIK: string): any | null {
+    if (!accountIIK || accountIIK.trim() === '') return null
+    
+    const iikTrimmed = accountIIK.trim()
+    
+    // Ищем счет с соответствующим номером счета (ИИК)
+    const matchingAccount = accounts.find(account => {
+      if (!account.accountNumber) return false
+      
+      // Сравниваем ИИК напрямую
+      if (account.accountNumber.trim() === iikTrimmed) {
+        return true
+      }
+      
+      // Также проверяем частичное совпадение (на случай разных форматов)
+      const accountNumber = account.accountNumber.replace(/\s+/g, '')
+      const iikClean = iikTrimmed.replace(/\s+/g, '')
+      
+      return accountNumber === iikClean
+    })
+    
+    return matchingAccount || null
+  }
+
   const parse1CClientBankExchangeTxt = (content: string) => {
     const results: any[] = []
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
@@ -266,8 +291,12 @@ export function StatementImport() {
           return
         }
 
-        const account = accounts.find((a) => a.id === selectedAccountId)
-        if (!account) return
+        // Автоматически определяем счет по ИИК
+        const account = findAccountByIIK(accountIIK)
+        if (!account) {
+          console.warn(`Не найден счет для ИИК: ${accountIIK}`)
+          return
+        }
 
         // Определяем категорию
         let categoryName = detectCategoryByText(purposeText)
@@ -349,34 +378,47 @@ export function StatementImport() {
         }
         txs = process(rows)
       }
-      // Собираем информацию об ИИК для подсказки
+      // Собираем информацию об ИИК и автоматически определенных счетах
       const accountIIKs = new Set<string>()
-      const selectedAccount = accounts.find(a => a.id === selectedAccountId)
+      const detectedAccounts = new Set<string>()
+      const skippedTransactions = new Set<string>()
       
       txs.forEach((tx) => {
         if (tx.accountIIK && tx.accountIIK.trim() !== '') {
           accountIIKs.add(tx.accountIIK)
         }
-        addTransaction(tx)
+        if (tx.accountId) {
+          const account = accounts.find(a => a.id === tx.accountId)
+          if (account) {
+            detectedAccounts.add(account.name)
+            addTransaction(tx)
+          } else {
+            skippedTransactions.add(tx.accountIIK || 'неизвестный ИИК')
+          }
+        } else {
+          // Если нет accountId, значит транзакция была пропущена из-за отсутствия счета
+          skippedTransactions.add(tx.accountIIK || 'неизвестный ИИК')
+        }
       })
       
       setStatus('success')
       
-      // Проверяем соответствие выбранного счета и ИИК выписки
-      let warningMessage = ''
-      if (accountIIKs.size > 0 && selectedAccount) {
-        const accountIIK = Array.from(accountIIKs)[0] // Берем первый ИИК
-        const suggestedAccount = findMatchingAccountByIIK(accountIIK)
-        
-        if (suggestedAccount && suggestedAccount.toLowerCase() !== selectedAccount.name.toLowerCase()) {
-          warningMessage = `\n\n⚠️ Внимание: Выбран счет "${selectedAccount.name}", но выписка по ИИК "${accountIIK}". Рекомендуется выбрать счет "${suggestedAccount}".`
-        }
+      // Формируем сообщение об успешном импорте
+      let successMessage = `Импортировано ${txs.length} операций`
+      
+      if (detectedAccounts.size > 0) {
+        successMessage += `\n\nАвтоматически определены счета: ${Array.from(detectedAccounts).join(', ')}`
       }
       
-      const iikInfo = accountIIKs.size > 0 
-        ? `\n\nИИК выписки: ${Array.from(accountIIKs).join(', ')}`
-        : ''
-      setMessage(`Импортировано ${txs.length} операций${iikInfo}${warningMessage}`)
+      if (accountIIKs.size > 0) {
+        successMessage += `\n\nИИК выписки: ${Array.from(accountIIKs).join(', ')}`
+      }
+      
+      if (skippedTransactions.size > 0) {
+        successMessage += `\n\n⚠️ Пропущено операций (счет не найден): ${skippedTransactions.size}`
+      }
+      
+      setMessage(successMessage)
     } catch (e: any) {
       setStatus('error')
       setMessage(e?.message || 'Ошибка импорта')
@@ -396,21 +438,6 @@ export function StatementImport() {
           <DialogTitle>Импорт по выписке</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="account-select">Выберите счёт</Label>
-            <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-              <SelectTrigger id="account-select" className="mt-2">
-                <SelectValue placeholder="Выберите счёт для импорта" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((acc) => (
-                  <SelectItem key={acc.id} value={acc.id}>
-                    {acc.name} ({acc.currency})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div>
             <Label htmlFor="statement-file">Файл выписки</Label>
             <Input id="statement-file" type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileSelect} className="mt-2" />
