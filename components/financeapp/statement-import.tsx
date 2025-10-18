@@ -13,7 +13,7 @@ import Papa from "papaparse"
 import { useFinance } from "@/lib/financeapp/finance-context"
 
 export function StatementImport() {
-  const { accounts, categories, counterparties, addTransaction, addAccount, addCategory, addCounterparty } = useFinance()
+  const { accounts, categories, counterparties, transactions, addTransaction, addAccount, addCategory, addCounterparty } = useFinance()
 
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -207,9 +207,19 @@ export function StatementImport() {
     return matchingAccount || null
   }
 
+  // Функция для проверки существующих транзакций по номеру документа
+  function isTransactionExists(documentNumber: string): boolean {
+    if (!documentNumber || documentNumber.trim() === '') return false
+    
+    return transactions.some(transaction => 
+      transaction.documentNumber === documentNumber.trim()
+    )
+  }
+
   const parse1CClientBankExchangeTxt = (content: string) => {
     const results: any[] = []
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
+    const duplicateCount = { count: 0 } // Счетчик дубликатов
     
     // Разбиваем по операциям
     const blocks = content.split(/СекцияДокумент=/i).slice(1)
@@ -325,9 +335,17 @@ export function StatementImport() {
         // Создаем уникальный ключ для проверки дубликатов по номеру документа
         const transactionKey = documentNumberValue || `${date}_${counterpartyName}_${type}`
         
-        // Проверяем, не встречалась ли уже такая транзакция
+        // Проверяем, не встречалась ли уже такая транзакция в файле
         if (seenTransactions.has(transactionKey)) {
-          console.log(`Пропущен дубликат по номеру документа: ${documentNumberValue || 'без номера'} - ${date} - ${counterpartyName}`)
+          console.log(`Пропущен дубликат в файле: ${documentNumberValue || 'без номера'} - ${date} - ${counterpartyName}`)
+          duplicateCount.count++
+          return
+        }
+        
+        // Проверяем существующие транзакции в базе данных
+        if (documentNumberValue && isTransactionExists(documentNumberValue)) {
+          console.log(`Пропущена существующая транзакция: ${documentNumberValue}`)
+          duplicateCount.count++
           return
         }
         
@@ -350,7 +368,8 @@ export function StatementImport() {
       }
     })
     
-    return results
+    console.log(`Обработано ${results.length} транзакций, пропущено ${duplicateCount.count} дубликатов`)
+    return { transactions: results, duplicateCount: duplicateCount.count }
   }
 
   const handleImport = async () => {
@@ -359,12 +378,15 @@ export function StatementImport() {
     setMessage('Обработка файла...')
     try {
       let txs: any[] = []
+      let duplicateCount = 0
       const ext = file.name.split('.').pop()?.toLowerCase()
       if (ext === 'txt') {
         const text = await file.text()
         // если это 1CClientBankExchange — парсим напрямую
         if (/1CClientBankExchange/i.test(text) || /СекцияДокумент=/i.test(text)) {
-          txs = parse1CClientBankExchangeTxt(text)
+          const result = parse1CClientBankExchangeTxt(text)
+          txs = result.transactions
+          duplicateCount = result.duplicateCount
         }
       } 
       if (txs.length === 0) {
@@ -418,12 +440,14 @@ export function StatementImport() {
         successMessage += `\n\nИИК выписки: ${Array.from(accountIIKs).join(', ')}`
       }
       
-      if (skippedTransactions.size > 0) {
-        successMessage += `\n\n⚠️ Пропущено операций (счет не найден): ${skippedTransactions.size}`
-      }
+          if (skippedTransactions.size > 0) {
+            successMessage += `\n\n⚠️ Пропущено операций (счет не найден): ${skippedTransactions.size}`
+          }
+          
+          if (duplicateTransactions.size > 0) {
+            successMessage += `\n\n⚠️ Пропущено дубликатов: ${duplicateTransactions.size}`
+          }
       
-      // Добавляем информацию о дубликатах, если они есть
-      const duplicateCount = txs.length - Array.from(new Set(txs.map(tx => tx.documentNumber || `${tx.date}_${tx.comment}_${tx.type}`))).length
       if (duplicateCount > 0) {
         successMessage += `\n\n🔄 Пропущено дубликатов: ${duplicateCount}`
       }

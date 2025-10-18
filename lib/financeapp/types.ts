@@ -45,6 +45,7 @@ export interface Transaction {
   invoiceId?: string
   comment?: string
   createdAt: string
+  documentNumber?: string
 }
 
 export interface InvoiceStatus {
