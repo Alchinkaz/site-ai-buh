@@ -308,7 +308,7 @@ export function TransactionList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="table-fixed" style={{ wordBreak: 'break-word', tableLayout: 'fixed' }}>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">
@@ -350,29 +350,32 @@ export function TransactionList() {
                           {getTypeLabel(transaction.type)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[150px]">
+                      <TableCell className="w-[150px]">
                         {category && transaction.type !== "transfer" ? (
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
-                            <span className="break-words text-sm">{category.name}</span>
+                          <div className="flex items-start gap-2">
+                            <div className="h-2 w-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: category.color }} />
+                            <span className="text-sm leading-tight break-words">{category.name}</span>
                           </div>
                         ) : (
                           "-"
                         )}
                       </TableCell>
-                      <TableCell className="max-w-[200px]">
+                      <TableCell className="w-[200px]">
                         {transaction.type === "transfer" && toAccount ? (
-                          <div className="flex items-center gap-1.5 text-sm">
-                            <span className="font-medium break-words">{account?.name || "-"}</span>
-                            <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium break-words">{toAccount.name}</span>
+                          <div className="space-y-1 text-sm">
+                            <div className="font-medium break-words">{account?.name || "-"}</div>
+                            <div className="flex items-center gap-1">
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">→</span>
+                            </div>
+                            <div className="font-medium break-words">{toAccount.name}</div>
                           </div>
                         ) : (
-                          <span className="break-words">{account?.name || "-"}</span>
+                          <span className="text-sm break-words">{account?.name || "-"}</span>
                         )}
                       </TableCell>
-                      <TableCell className="max-w-[180px] text-muted-foreground">
-                        <span className="break-words text-sm">{counterparty?.name || "-"}</span>
+                      <TableCell className="w-[180px] text-muted-foreground">
+                        <span className="text-sm break-words leading-tight">{counterparty?.name || "-"}</span>
                       </TableCell>
                       <TableCell
                         className={cn("text-right font-semibold tabular-nums", {
@@ -384,8 +387,8 @@ export function TransactionList() {
                         {transaction.type === "expense" && "-"}
                         {formatCurrency(transaction.amount, transaction.currency)}
                       </TableCell>
-                      <TableCell className="max-w-[200px] text-sm text-muted-foreground">
-                        <span className="break-words">{transaction.comment || "-"}</span>
+                      <TableCell className="w-[200px] text-sm text-muted-foreground">
+                        <span className="break-words leading-tight">{transaction.comment || "-"}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
