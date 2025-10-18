@@ -91,8 +91,15 @@ def parse_1c_file(content: str) -> list[dict]:
         purpose_match = re.search(r"НазначениеПлатежа=(.+)", block)
         purpose = purpose_match.group(1).strip() if purpose_match else ""
 
-        # Исключаем внутренние переводы
-        if counterparty.lower() == "alchin" or "своего счета" in purpose.lower():
+        # Исключаем внутренние переводы и записи без контрагента
+        if (counterparty.lower() == "alchin" or 
+            "своего счета" in purpose.lower() or
+            not counterparty or 
+            counterparty.strip() == "" or 
+            counterparty == "-" or
+            not purpose or
+            purpose.strip() == "" or
+            purpose == "-"):
             continue
 
         # Категория
