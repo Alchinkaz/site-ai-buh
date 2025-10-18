@@ -28,6 +28,7 @@ export function TransactionList() {
   const [filterType, setFilterType] = useState<string>("all")
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [limit, setLimit] = useState<number>(50)
+  const [currentPage, setCurrentPage] = useState<number>(1)
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set())
   const [editOpen, setEditOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<any>(null)
@@ -42,7 +43,7 @@ export function TransactionList() {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedTransactionDetails, setSelectedTransactionDetails] = useState<any>(null)
 
-  const filteredTransactions = useMemo(() => {
+  const allFilteredTransactions = useMemo(() => {
     return transactions
       .filter((t) => {
         if (filterType !== "all" && t.type !== filterType) return false
@@ -65,8 +66,12 @@ export function TransactionList() {
         return true
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, limit)
-  }, [transactions, accounts, categories, counterparties, searchTerm, filterType, filterCategory, limit])
+  }, [transactions, accounts, categories, counterparties, searchTerm, filterType, filterCategory])
+
+  const totalPages = Math.ceil(allFilteredTransactions.length / limit)
+  const startIndex = (currentPage - 1) * limit
+  const endIndex = startIndex + limit
+  const filteredTransactions = allFilteredTransactions.slice(startIndex, endIndex)
 
   const handleDelete = (id: string) => {
     if (confirm("Вы уверены, что хотите удалить эту транзакцию? Баланс счёта будет скорректирован.")) {
@@ -113,6 +118,16 @@ export function TransactionList() {
     } else {
       setSelectedTransactions(new Set())
     }
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    setSelectedTransactions(new Set()) // Очищаем выбор при смене страницы
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    setCurrentPage(1) // Сбрасываем на первую страницу при изменении лимита
   }
 
   const handleBulkDelete = () => {
@@ -217,7 +232,7 @@ export function TransactionList() {
           <div>
             <CardTitle>Транзакции</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              Показано: {filteredTransactions.length} из {transactions.length}
+              Показано: {filteredTransactions.length} из {allFilteredTransactions.length} (страница {currentPage} из {totalPages})
               {selectedTransactions.size > 0 && ` • Выбрано: ${selectedTransactions.size}`}
             </p>
           </div>
@@ -256,7 +271,7 @@ export function TransactionList() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={limit.toString()} onValueChange={(value) => setLimit(Number(value))}>
+            <Select value={limit.toString()} onValueChange={(value) => handleLimitChange(Number(value))}>
               <SelectTrigger className="md:w-[100px]">
                 <SelectValue />
               </SelectTrigger>
@@ -408,6 +423,62 @@ export function TransactionList() {
                 })}
               </TableBody>
             </Table>
+          </div>
+        )}
+        
+        {/* Пагинация */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                Назад
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                Вперед
+              </Button>
+            </div>
+            
+            <div className="text-sm text-muted-foreground">
+              Страница {currentPage} из {totalPages}
+            </div>
           </div>
         )}
       </CardContent>
