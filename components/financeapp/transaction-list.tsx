@@ -324,6 +324,26 @@ export function TransactionList() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => handleSelectAll(true)}
+              className="h-8"
+              disabled={selectedTransactions.size === filteredTransactions.length}
+            >
+              Выбрать все на странице
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedTransactions(new Set(allFilteredTransactions.map(t => t.id)))
+              }}
+              className="h-8"
+              disabled={selectedTransactions.size === allFilteredTransactions.length}
+            >
+              Выбрать все ({allFilteredTransactions.length})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleBulkEdit}
               className="h-8"
             >
