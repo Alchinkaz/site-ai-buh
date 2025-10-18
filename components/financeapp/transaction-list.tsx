@@ -16,6 +16,12 @@ import { TransactionForm } from "@/components/financeapp/transaction-form"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
+// Функция для сокращения текста
+const truncateText = (text: string, maxLength: number = 30) => {
+  if (!text || text.length <= maxLength) return text
+  return text.substring(0, maxLength) + "..."
+}
+
 export function TransactionList() {
   const { transactions, accounts, categories, counterparties, deleteTransaction, updateTransaction } = useFinance()
   const [searchTerm, setSearchTerm] = useState("")
@@ -33,6 +39,8 @@ export function TransactionList() {
     type: "",
     counterpartyId: ""
   })
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [selectedTransactionDetails, setSelectedTransactionDetails] = useState<any>(null)
 
   const filteredTransactions = useMemo(() => {
     return transactions
@@ -82,6 +90,11 @@ export function TransactionList() {
   const handleEdit = (transaction: any) => {
     setEditingTransaction(transaction)
     setEditOpen(true)
+  }
+
+  const handleShowDetails = (transaction: any) => {
+    setSelectedTransactionDetails(transaction)
+    setDetailsOpen(true)
   }
 
   const handleSelectTransaction = (id: string, checked: boolean) => {
@@ -308,7 +321,7 @@ export function TransactionList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table className="table-fixed" style={{ wordBreak: 'break-word', tableLayout: 'fixed' }}>
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">
@@ -317,13 +330,13 @@ export function TransactionList() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead className="w-[120px]">Дата</TableHead>
-                  <TableHead className="w-[100px]">Тип</TableHead>
-                  <TableHead className="w-[150px]">Категория</TableHead>
-                  <TableHead className="w-[200px]">Счёт</TableHead>
-                  <TableHead className="w-[180px]">Контрагент</TableHead>
-                  <TableHead className="w-[120px] text-right">Сумма</TableHead>
-                  <TableHead className="w-[200px]">Комментарий</TableHead>
+                  <TableHead>Дата</TableHead>
+                  <TableHead>Тип</TableHead>
+                  <TableHead>Категория</TableHead>
+                  <TableHead>Счёт</TableHead>
+                  <TableHead>Контрагент</TableHead>
+                  <TableHead className="text-right">Сумма</TableHead>
+                  <TableHead>Комментарий</TableHead>
                   <TableHead className="w-[100px]">Действия</TableHead>
                 </TableRow>
               </TableHeader>
@@ -350,32 +363,29 @@ export function TransactionList() {
                           {getTypeLabel(transaction.type)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="w-[150px]">
+                      <TableCell>
                         {category && transaction.type !== "transfer" ? (
-                          <div className="flex items-start gap-2">
-                            <div className="h-2 w-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: category.color }} />
-                            <span className="text-sm leading-tight break-words">{category.name}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color }} />
+                            <span title={category.name}>{truncateText(category.name, 20)}</span>
                           </div>
                         ) : (
                           "-"
                         )}
                       </TableCell>
-                      <TableCell className="w-[200px]">
+                      <TableCell>
                         {transaction.type === "transfer" && toAccount ? (
-                          <div className="space-y-1 text-sm">
-                            <div className="font-medium break-words">{account?.name || "-"}</div>
-                            <div className="flex items-center gap-1">
-                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">→</span>
-                            </div>
-                            <div className="font-medium break-words">{toAccount.name}</div>
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <span className="font-medium" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-medium" title={toAccount.name}>{truncateText(toAccount.name, 15)}</span>
                           </div>
                         ) : (
-                          <span className="text-sm break-words">{account?.name || "-"}</span>
+                          <span title={account?.name}>{truncateText(account?.name || "-", 25)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="w-[180px] text-muted-foreground">
-                        <span className="text-sm break-words leading-tight">{counterparty?.name || "-"}</span>
+                      <TableCell className="text-muted-foreground">
+                        <span title={counterparty?.name}>{truncateText(counterparty?.name || "-", 25)}</span>
                       </TableCell>
                       <TableCell
                         className={cn("text-right font-semibold tabular-nums", {
@@ -387,8 +397,20 @@ export function TransactionList() {
                         {transaction.type === "expense" && "-"}
                         {formatCurrency(transaction.amount, transaction.currency)}
                       </TableCell>
-                      <TableCell className="w-[200px] text-sm text-muted-foreground">
-                        <span className="break-words leading-tight">{transaction.comment || "-"}</span>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <span title={transaction.comment}>{truncateText(transaction.comment || "-", 30)}</span>
+                          {(transaction.comment && transaction.comment.length > 30) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleShowDetails(transaction)}
+                              className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800"
+                            >
+                              подробнее
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -528,6 +550,60 @@ export function TransactionList() {
             </Button>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Подробности транзакции</DialogTitle>
+        </DialogHeader>
+        {selectedTransactionDetails && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Дата</label>
+              <p className="text-sm">{formatDate(selectedTransactionDetails.date)}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Тип</label>
+              <p className="text-sm">{getTypeLabel(selectedTransactionDetails.type)}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Сумма</label>
+              <p className="text-sm font-semibold">
+                {selectedTransactionDetails.type === "expense" && "-"}
+                {formatCurrency(selectedTransactionDetails.amount, selectedTransactionDetails.currency)}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Счёт</label>
+              <p className="text-sm">{accounts.find(a => a.id === selectedTransactionDetails.accountId)?.name || "-"}</p>
+            </div>
+            {selectedTransactionDetails.toAccountId && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Получатель</label>
+                <p className="text-sm">{accounts.find(a => a.id === selectedTransactionDetails.toAccountId)?.name || "-"}</p>
+              </div>
+            )}
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Категория</label>
+              <p className="text-sm">{categories.find(c => c.id === selectedTransactionDetails.categoryId)?.name || "-"}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Контрагент</label>
+              <p className="text-sm">{counterparties.find(cp => cp.id === selectedTransactionDetails.counterpartyId)?.name || "-"}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Комментарий</label>
+              <p className="text-sm whitespace-pre-wrap">{selectedTransactionDetails.comment || "-"}</p>
+            </div>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+                Закрыть
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
     </>
