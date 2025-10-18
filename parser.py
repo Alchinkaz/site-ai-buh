@@ -1,147 +1,105 @@
+import os
 import re
-import csv
-from pathlib import Path
+import chardet
+from typing import List, Dict
 
-# === Настройки ===
+# 🔧 Наша компания
+COMPANY_NAME = "ALCHIN"
 
-INPUT_FILE = "vipiska_forte.txt"   # путь к файлу выписки
-OUTPUT_FILE = "parsed_result.csv"  # итоговый CSV
-
-# --- Категории по ключевым словам ---
-CATEGORIES = {
-    "Продажи Kaspi": ["kaspi.kz", "продажи", "kaspi qr"],
-    "Оплата от клиента": ["оплата", "поступление", "услуги", "мониторинг", "видеонаблюдение", "камера", "договор"],
-    "Налоги и сборы": ["налог", "гос", "казначейство"],
-    "Перевод между счетами": ["своего счета", "перевод собственных средств"],
-    "Платеж поставщику": ["оплата", "счет на оплату", "товар", "услуги", "поставка"],
-    "Kaspi Pay комиссия": ["kaspi pay", "информационно-технологические услуги"],
-    "Бензин / топливо": ["топливо", "гбо", "ai", "ai-92", "ai-95"],
-    "Прочее": []
-}
+# 🔧 Ключи, которые нужно парсить
+FIELDS = [
+    "ПолучательНаименование",
+    "ПлательщикНаименование",
+    "ПлательщикБИН_ИИН",
+    "ПолучательБИН_ИИН",
+    "ДатаОперации",
+    "СуммаРасход",
+    "СуммаПриход",
+    "НазначениеПлатежа"
+]
 
 
-def detect_category(text: str) -> str:
-    text_low = text.lower()
-    for cat, words in CATEGORIES.items():
-        if any(w in text_low for w in words):
-            return cat
-    return "Прочее"
+def detect_encoding(filepath: str) -> str:
+    """Определяем кодировку файла"""
+    with open(filepath, "rb") as f:
+        raw = f.read(2048)
+    result = chardet.detect(raw)
+    return result["encoding"] or "utf-8"
 
 
-def parse_1c_file(content: str) -> list[dict]:
+def parse_1c_files(file_paths: List[str]) -> List[Dict[str, str]]:
     """
-    Читает 1CClientBankExchange, берет только настоящие платежи (без дубликатов).
+    Парсит список файлов формата 1CClientBankExchange
+    Возвращает список словарей с ключами из FIELDS
     """
-    lines = content.splitlines()
-    results = []
+    all_records = []
 
-    current_block = []
-    inside_block = False
+    for file_path in file_paths:
+        encoding = detect_encoding(file_path)
+        with open(file_path, "r", encoding=encoding, errors="ignore") as f:
+            text = f.read()
 
-    # --- Собираем блоки вручную, чтобы отсечь "СекцияДокумент=Выписка" ---
-    for line in lines:
-        if line.startswith("СекцияДокумент="):
-            inside_block = True
-            current_block = [line]
-        elif line.startswith("КонецДокумента"):
-            current_block.append(line)
-            block_text = "\n".join(current_block)
+        # Унификация регистра ключей
+        text = re.sub(r'([А-ЯA-Z_]+)=', lambda m: m.group(1).capitalize() + '=', text)
 
-            # Берем только реальные документы, где есть получатель или назначение
-            if (
-                "ПлательщикНаименование=" in block_text
-                and "НазначениеПлатежа=" in block_text
-            ):
-                results.append(block_text)
+        # Разделяем по блокам документов
+        docs = re.split(r"СекцияДокумент=.*?\n", text, flags=re.IGNORECASE)
 
-            inside_block = False
-            current_block = []
-        elif inside_block:
-            current_block.append(line)
+        for doc in docs:
+            record = {}
 
-    parsed = []
+            # Пропускаем пустые блоки
+            if not doc.strip():
+                continue
 
-    for block in results:
-        # Дата документа
-        date_match = re.search(r"ДатаДокумента=(.+)", block)
-        date = date_match.group(1).strip() if date_match else ""
+            # Вытаскиваем ключи
+            for field in FIELDS + ["Сумма"]:
+                # Найдём "Ключ=Значение"
+                match = re.search(rf"{field}\s*=\s*(.+)", doc, flags=re.IGNORECASE)
+                if match:
+                    record[field] = match.group(1).strip()
 
-        # Сумма
-        sum_match = re.search(r"Сумма=(.+)", block)
-        if not sum_match:
-            continue
-        amount = float(sum_match.group(1).replace(",", "."))
+            # Пропускаем, если нет даты (значит не документ)
+            if "ДатаОперации" not in record:
+                continue
 
-        # Плательщик / Получатель
-        payer_match = re.search(r"ПлательщикНаименование=(.+)", block)
-        receiver_match = re.search(r"ПолучательНаименование=(.+)", block)
-        payer = payer_match.group(1).strip() if payer_match else ""
-        receiver = receiver_match.group(1).strip() if receiver_match else ""
+            # Пропускаем, если есть только "Сумма=", а нет СуммаРасход/СуммаПриход (чтобы избежать дублей)
+            if "Сумма" in record and ("СуммаРасход" in record or "СуммаПриход" in record):
+                record.pop("Сумма", None)
 
-        # Направление
-        if "alchin" in payer.lower():
-            type_ = "Расход"
-            amount = -amount
-            counterparty = receiver
-        else:
-            type_ = "Доход"
-            counterparty = payer
+            # Пропускаем внутренние переводы
+            payer = record.get("ПлательщикНаименование", "").lower()
+            receiver = record.get("ПолучательНаименование", "").lower()
 
-        # Назначение
-        purpose_match = re.search(r"НазначениеПлатежа=(.+)", block)
-        purpose = purpose_match.group(1).strip() if purpose_match else ""
+            if COMPANY_NAME.lower() in payer and COMPANY_NAME.lower() in receiver:
+                continue
 
-        # Исключаем внутренние переводы и записи без контрагента
-        if (counterparty.lower() == "alchin" or 
-            "своего счета" in purpose.lower() or
-            not counterparty or 
-            counterparty.strip() == "" or 
-            counterparty == "-" or
-            not purpose or
-            purpose.strip() == "" or
-            purpose == "-"):
-            continue
+            # Добавляем только если контрагент не мы
+            all_records.append({k: record.get(k, "") for k in FIELDS})
 
-        # Категория
-        category = detect_category(purpose)
-
-        parsed.append({
-            "Дата": date,
-            "Тип": type_,
-            "Категория": category,
-            "Контрагент": counterparty,
-            "Сумма": f"{amount:,.2f}".replace(",", " "),
-            "Комментарий": purpose
-        })
-
-    # --- Убираем дубли (одинаковые дата + сумма + контрагент) ---
-    unique = []
-    seen = set()
-    for item in parsed:
-        key = (item["Дата"], item["Сумма"], item["Контрагент"])
-        if key not in seen:
-            seen.add(key)
-            unique.append(item)
-
-    return unique
+    return all_records
 
 
-def save_to_csv(data: list[dict], filename: str):
-    if not data:
-        print("❌ Нет данных для сохранения.")
-        return
-    with open(filename, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=data[0].keys())
-        writer.writeheader()
-        writer.writerows(data)
-    print(f"✅ Сохранено: {filename} ({len(data)} операций)")
-
-
-def main():
-    text = Path(INPUT_FILE).read_text(encoding="utf-8", errors="ignore")
-    parsed = parse_1c_file(text)
-    save_to_csv(parsed, OUTPUT_FILE)
-
-
+# ✅ Пример использования
 if __name__ == "__main__":
-    main()
+    # Путь к папке с файлами
+    folder = "."
+    files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".txt")]
+
+    records = parse_1c_files(files)
+
+    # Вывод для проверки
+    print(f"Найдено {len(records)} операций:")
+    for r in records[:5]:
+        print(r)
+
+    # Пример подготовки к вставке в БД:
+    # cursor.executemany(
+    #     """INSERT INTO payments (
+    #         receiver_name, payer_name, payer_bin, receiver_bin,
+    #         operation_date, expense_sum, income_sum, payment_purpose
+    #     ) VALUES (%(ПолучательНаименование)s, %(ПлательщикНаименование)s, %(ПлательщикБИН_ИИН)s,
+    #               %(ПолучательБИН_ИИН)s, %(ДатаОперации)s, %(СуммаРасход)s,
+    #               %(СуммаПриход)s, %(НазначениеПлатежа)s)""",
+    #     records
+    # )
