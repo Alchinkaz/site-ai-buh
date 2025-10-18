@@ -321,7 +321,7 @@ export function TransactionList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">
@@ -330,14 +330,14 @@ export function TransactionList() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Тип</TableHead>
-                  <TableHead>Категория</TableHead>
-                  <TableHead>Счёт</TableHead>
-                  <TableHead>Контрагент</TableHead>
-                  <TableHead className="text-right">Сумма</TableHead>
-                  <TableHead>Комментарий</TableHead>
-                  <TableHead className="w-[100px]">Действия</TableHead>
+                  <TableHead className="w-[90px]">Дата</TableHead>
+                  <TableHead className="w-[80px]">Тип</TableHead>
+                  <TableHead className="w-[120px]">Категория</TableHead>
+                  <TableHead className="w-[140px]">Счёт</TableHead>
+                  <TableHead className="w-[120px]">Контрагент</TableHead>
+                  <TableHead className="w-[100px] text-right">Сумма</TableHead>
+                  <TableHead className="w-[150px]">Комментарий</TableHead>
+                  <TableHead className="w-[80px]">Действия</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -357,17 +357,17 @@ export function TransactionList() {
                           onCheckedChange={(checked) => handleSelectTransaction(transaction.id, checked as boolean)}
                         />
                       </TableCell>
-                      <TableCell className="whitespace-nowrap font-medium">{formatDate(transaction.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap font-medium text-xs">{formatDate(transaction.date)}</TableCell>
                       <TableCell>
-                        <Badge className={cn("font-medium", getTypeColor(transaction.type))}>
+                        <Badge className={cn("font-medium text-xs px-1 py-0", getTypeColor(transaction.type))}>
                           {getTypeLabel(transaction.type)}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         {category && transaction.type !== "transfer" ? (
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color }} />
-                            <span title={category.name}>{truncateText(category.name, 20)}</span>
+                          <div className="flex items-center gap-1">
+                            <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
+                            <span className="text-xs" title={category.name}>{truncateText(category.name, 12)}</span>
                           </div>
                         ) : (
                           "-"
@@ -375,20 +375,20 @@ export function TransactionList() {
                       </TableCell>
                       <TableCell>
                         {transaction.type === "transfer" && toAccount ? (
-                          <div className="flex items-center gap-1.5 text-sm">
-                            <span className="font-medium" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
-                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-medium" title={toAccount.name}>{truncateText(toAccount.name, 15)}</span>
+                          <div className="text-xs">
+                            <div className="font-medium" title={account?.name}>{truncateText(account?.name || "-", 10)}</div>
+                            <div className="text-center text-muted-foreground">→</div>
+                            <div className="font-medium" title={toAccount.name}>{truncateText(toAccount.name, 10)}</div>
                           </div>
                         ) : (
-                          <span title={account?.name}>{truncateText(account?.name || "-", 25)}</span>
+                          <span className="text-xs" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <span title={counterparty?.name}>{truncateText(counterparty?.name || "-", 25)}</span>
+                      <TableCell className="text-muted-foreground text-xs">
+                        <span title={counterparty?.name}>{truncateText(counterparty?.name || "-", 15)}</span>
                       </TableCell>
                       <TableCell
-                        className={cn("text-right font-semibold tabular-nums", {
+                        className={cn("text-right font-semibold tabular-nums text-xs", {
                           "text-green-600 dark:text-green-400": transaction.type === "income",
                           "text-red-600 dark:text-red-400": transaction.type === "expense",
                           "text-blue-600 dark:text-blue-400": transaction.type === "transfer",
@@ -397,38 +397,38 @@ export function TransactionList() {
                         {transaction.type === "expense" && "-"}
                         {formatCurrency(transaction.amount, transaction.currency)}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <span title={transaction.comment}>{truncateText(transaction.comment || "-", 30)}</span>
-                          {(transaction.comment && transaction.comment.length > 30) && (
+                      <TableCell className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <span title={transaction.comment}>{truncateText(transaction.comment || "-", 18)}</span>
+                          {(transaction.comment && transaction.comment.length > 18) && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleShowDetails(transaction)}
-                              className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800"
+                              className="h-5 px-1 text-xs text-blue-600 hover:text-blue-800"
                             >
-                              подробнее
+                              ...
                             </Button>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(transaction)}
-                            className="hover:bg-blue-100"
+                            className="h-6 w-6 hover:bg-blue-100"
                           >
-                            <Pencil className="h-4 w-4 text-blue-600" />
+                            <Pencil className="h-3 w-3 text-blue-600" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDelete(transaction.id)}
-                            className="hover:bg-destructive/10"
+                            className="h-6 w-6 hover:bg-destructive/10"
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2 className="h-3 w-3 text-destructive" />
                           </Button>
                         </div>
                       </TableCell>
