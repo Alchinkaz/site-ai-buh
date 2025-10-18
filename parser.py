@@ -5,15 +5,15 @@ from pathlib import Path
 # === Настройки ===
 
 INPUT_FILE = "vipiska_forte.txt"   # путь к файлу выписки
-OUTPUT_FILE = "parsed_result.csv"  # куда сохранить результат
+OUTPUT_FILE = "parsed_result.csv"  # итоговый CSV
 
-# Ключевые слова для категорий (можно расширять)
+# --- Категории по ключевым словам ---
 CATEGORIES = {
     "Продажи Kaspi": ["kaspi.kz", "продажи", "kaspi qr"],
     "Оплата от клиента": ["оплата", "поступление", "услуги", "мониторинг", "видеонаблюдение", "камера", "договор"],
     "Налоги и сборы": ["налог", "гос", "казначейство"],
-    "Перевод между счетами": ["своего счета", "перевод собственных средств", "между своими счетами"],
-    "Платеж поставщику": ["оплата", "счет на оплату", "товар", "поставка", "услуги"],
+    "Перевод между счетами": ["своего счета", "перевод собственных средств"],
+    "Платеж поставщику": ["оплата", "счет на оплату", "товар", "услуги", "поставка"],
     "Kaspi Pay комиссия": ["kaspi pay", "информационно-технологические услуги"],
     "Бензин / топливо": ["топливо", "гбо", "ai", "ai-92", "ai-95"],
     "Прочее": []
@@ -21,64 +21,84 @@ CATEGORIES = {
 
 
 def detect_category(text: str) -> str:
-    """Определяет категорию по ключевым словам"""
     text_low = text.lower()
-    for category, keywords in CATEGORIES.items():
-        if any(word in text_low for word in keywords):
-            return category
+    for cat, words in CATEGORIES.items():
+        if any(w in text_low for w in words):
+            return cat
     return "Прочее"
 
 
 def parse_1c_file(content: str) -> list[dict]:
     """
-    Парсит выписку 1CClientBankExchange (ForteBank, Kaspi)
-    и возвращает список операций без дублей.
+    Читает 1CClientBankExchange, берет только настоящие платежи (без дубликатов).
     """
-    # --- 1. Берем только полноценные документы ---
-    # ForteBank формирует дубли: "Выписка" + "ПлатежноеПоручение"
-    # Мы игнорируем "Выписка", берем только "ПлатежноеПоручение"
-    blocks = re.findall(r"СекцияДокумент=ПлатежноеПоручение[\s\S]*?КонецДокумента", content, re.IGNORECASE)
+    lines = content.splitlines()
+    results = []
 
-    operations = []
+    current_block = []
+    inside_block = False
 
-    for block in blocks:
-        # --- 2. Извлекаем дату ---
+    # --- Собираем блоки вручную, чтобы отсечь "СекцияДокумент=Выписка" ---
+    for line in lines:
+        if line.startswith("СекцияДокумент="):
+            inside_block = True
+            current_block = [line]
+        elif line.startswith("КонецДокумента"):
+            current_block.append(line)
+            block_text = "\n".join(current_block)
+
+            # Берем только реальные документы, где есть получатель или назначение
+            if (
+                "ПлательщикНаименование=" in block_text
+                and "НазначениеПлатежа=" in block_text
+            ):
+                results.append(block_text)
+
+            inside_block = False
+            current_block = []
+        elif inside_block:
+            current_block.append(line)
+
+    parsed = []
+
+    for block in results:
+        # Дата документа
         date_match = re.search(r"ДатаДокумента=(.+)", block)
         date = date_match.group(1).strip() if date_match else ""
 
-        # --- 3. Извлекаем сумму ---
+        # Сумма
         sum_match = re.search(r"Сумма=(.+)", block)
         if not sum_match:
             continue
         amount = float(sum_match.group(1).replace(",", "."))
 
-        # --- 4. Извлекаем участников операции ---
-        payer = re.search(r"ПлательщикНаименование=(.+)", block)
-        receiver = re.search(r"ПолучательНаименование=(.+)", block)
-        payer_name = payer.group(1).strip() if payer else ""
-        receiver_name = receiver.group(1).strip() if receiver else ""
+        # Плательщик / Получатель
+        payer_match = re.search(r"ПлательщикНаименование=(.+)", block)
+        receiver_match = re.search(r"ПолучательНаименование=(.+)", block)
+        payer = payer_match.group(1).strip() if payer_match else ""
+        receiver = receiver_match.group(1).strip() if receiver_match else ""
 
-        # --- 5. Определяем тип операции ---
-        if "alchin" in payer_name.lower():
+        # Направление
+        if "alchin" in payer.lower():
             type_ = "Расход"
             amount = -amount
-            counterparty = receiver_name
+            counterparty = receiver
         else:
             type_ = "Доход"
-            counterparty = payer_name
+            counterparty = payer
 
-        # --- 6. Назначение платежа ---
+        # Назначение
         purpose_match = re.search(r"НазначениеПлатежа=(.+)", block)
         purpose = purpose_match.group(1).strip() if purpose_match else ""
 
-        # --- 7. Исключаем записи без контрагента и внутренние переводы ---
-        if not counterparty or counterparty.strip() == "" or counterparty.lower() == "alchin" or "своего счета" in purpose.lower():
-            continue  # пропускаем такие строки
+        # Исключаем внутренние переводы
+        if counterparty.lower() == "alchin" or "своего счета" in purpose.lower():
+            continue
 
-        # --- 8. Категория и финальные данные ---
+        # Категория
         category = detect_category(purpose)
 
-        operations.append({
+        parsed.append({
             "Дата": date,
             "Тип": type_,
             "Категория": category,
@@ -87,20 +107,19 @@ def parse_1c_file(content: str) -> list[dict]:
             "Комментарий": purpose
         })
 
-    # --- 9. Убираем возможные дубли по комбинации (дата, сумма, контрагент) ---
-    unique_ops = []
+    # --- Убираем дубли (одинаковые дата + сумма + контрагент) ---
+    unique = []
     seen = set()
-    for op in operations:
-        key = (op["Дата"], op["Сумма"], op["Контрагент"])
+    for item in parsed:
+        key = (item["Дата"], item["Сумма"], item["Контрагент"])
         if key not in seen:
             seen.add(key)
-            unique_ops.append(op)
+            unique.append(item)
 
-    return unique_ops
+    return unique
 
 
 def save_to_csv(data: list[dict], filename: str):
-    """Сохраняет результат в CSV"""
     if not data:
         print("❌ Нет данных для сохранения.")
         return
@@ -108,14 +127,11 @@ def save_to_csv(data: list[dict], filename: str):
         writer = csv.DictWriter(f, fieldnames=data[0].keys())
         writer.writeheader()
         writer.writerows(data)
-    print(f"✅ Готово! Сохранено: {filename} ({len(data)} операций)")
+    print(f"✅ Сохранено: {filename} ({len(data)} операций)")
 
 
 def main():
-    # Чтение файла
     text = Path(INPUT_FILE).read_text(encoding="utf-8", errors="ignore")
-
-    # Парсинг и сохранение
     parsed = parse_1c_file(text)
     save_to_csv(parsed, OUTPUT_FILE)
 
