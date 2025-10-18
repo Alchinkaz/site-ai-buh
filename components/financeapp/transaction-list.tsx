@@ -317,13 +317,13 @@ export function TransactionList() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Тип</TableHead>
-                  <TableHead>Категория</TableHead>
-                  <TableHead>Счёт</TableHead>
-                  <TableHead>Контрагент</TableHead>
-                  <TableHead className="text-right">Сумма</TableHead>
-                  <TableHead>Комментарий</TableHead>
+                  <TableHead className="w-[120px]">Дата</TableHead>
+                  <TableHead className="w-[100px]">Тип</TableHead>
+                  <TableHead className="w-[150px]">Категория</TableHead>
+                  <TableHead className="w-[200px]">Счёт</TableHead>
+                  <TableHead className="w-[180px]">Контрагент</TableHead>
+                  <TableHead className="w-[120px] text-right">Сумма</TableHead>
+                  <TableHead className="w-[200px]">Комментарий</TableHead>
                   <TableHead className="w-[100px]">Действия</TableHead>
                 </TableRow>
               </TableHeader>
@@ -350,28 +350,30 @@ export function TransactionList() {
                           {getTypeLabel(transaction.type)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-[150px]">
                         {category && transaction.type !== "transfer" ? (
                           <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color }} />
-                            {category.name}
+                            <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
+                            <span className="break-words text-sm">{category.name}</span>
                           </div>
                         ) : (
                           "-"
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-[200px]">
                         {transaction.type === "transfer" && toAccount ? (
                           <div className="flex items-center gap-1.5 text-sm">
-                            <span className="font-medium">{account?.name || "-"}</span>
-                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-medium">{toAccount.name}</span>
+                            <span className="font-medium break-words">{account?.name || "-"}</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium break-words">{toAccount.name}</span>
                           </div>
                         ) : (
-                          account?.name || "-"
+                          <span className="break-words">{account?.name || "-"}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{counterparty?.name || "-"}</TableCell>
+                      <TableCell className="max-w-[180px] text-muted-foreground">
+                        <span className="break-words text-sm">{counterparty?.name || "-"}</span>
+                      </TableCell>
                       <TableCell
                         className={cn("text-right font-semibold tabular-nums", {
                           "text-green-600 dark:text-green-400": transaction.type === "income",
@@ -382,8 +384,8 @@ export function TransactionList() {
                         {transaction.type === "expense" && "-"}
                         {formatCurrency(transaction.amount, transaction.currency)}
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                        {transaction.comment || "-"}
+                      <TableCell className="max-w-[200px] text-sm text-muted-foreground">
+                        <span className="break-words">{transaction.comment || "-"}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
