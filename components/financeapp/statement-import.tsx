@@ -263,15 +263,17 @@ export function StatementImport() {
         const receiver = block.match(/ПолучательНаименование=(.+)/i)
         const purpose = block.match(/НазначениеПлатежа=(.+)/i)
         
-        // ИИК данные
+        // ИИК данные и номер документа
         const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
         const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+        const documentNumber = block.match(/НомерДокумента=(.+)/i)
 
         const payerName = payer?.[1]?.trim() || ''
         const receiverName = receiver?.[1]?.trim() || ''
         const purposeText = purpose?.[1]?.trim() || ''
         const payerIIKValue = payerIIK?.[1]?.trim() || ''
         const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+        const documentNumberValue = documentNumber?.[1]?.trim() || ''
 
         // Определяем контрагента: для дохода — плательщик, для расхода — получатель
         const counterpartyName = type === 'income' ? payerName : receiverName
@@ -320,12 +322,12 @@ export function StatementImport() {
           })
         }
 
-        // Создаем уникальный ключ для проверки дубликатов (игнорируем сумму как просили)
-        const transactionKey = `${date}_${counterpartyName}_${type}`
+        // Создаем уникальный ключ для проверки дубликатов по номеру документа
+        const transactionKey = documentNumberValue || `${date}_${counterpartyName}_${type}`
         
         // Проверяем, не встречалась ли уже такая транзакция
         if (seenTransactions.has(transactionKey)) {
-          console.log(`Пропущен дубликат: ${date} - ${counterpartyName} - ${type}`)
+          console.log(`Пропущен дубликат по номеру документа: ${documentNumberValue || 'без номера'} - ${date} - ${counterpartyName}`)
           return
         }
         
@@ -341,6 +343,7 @@ export function StatementImport() {
           counterpartyId: counterparty?.id || '',
           currency: account.currency,
           accountIIK: accountIIK, // Добавляем ИИК счета
+          documentNumber: documentNumberValue, // Добавляем номер документа
         })
       } catch (error) {
         console.error('Error parsing 1C block:', error)
@@ -378,10 +381,11 @@ export function StatementImport() {
         }
         txs = process(rows)
       }
-      // Собираем информацию об ИИК и автоматически определенных счетах
+      // Собираем информацию об ИИК, счетах и дубликатах
       const accountIIKs = new Set<string>()
       const detectedAccounts = new Set<string>()
       const skippedTransactions = new Set<string>()
+      const duplicateTransactions = new Set<string>()
       
       txs.forEach((tx) => {
         if (tx.accountIIK && tx.accountIIK.trim() !== '') {
@@ -416,6 +420,12 @@ export function StatementImport() {
       
       if (skippedTransactions.size > 0) {
         successMessage += `\n\n⚠️ Пропущено операций (счет не найден): ${skippedTransactions.size}`
+      }
+      
+      // Добавляем информацию о дубликатах, если они есть
+      const duplicateCount = txs.length - Array.from(new Set(txs.map(tx => tx.documentNumber || `${tx.date}_${tx.comment}_${tx.type}`))).length
+      if (duplicateCount > 0) {
+        successMessage += `\n\n🔄 Пропущено дубликатов: ${duplicateCount}`
       }
       
       setMessage(successMessage)
