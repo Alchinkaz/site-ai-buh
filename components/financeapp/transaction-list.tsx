@@ -320,7 +320,7 @@ export function TransactionList() {
             </p>
           </div>
         ) : (
-          <div className="overflow-y-auto max-h-[600px]">
+          <div className="overflow-y-auto max-h-[600px] overflow-x-hidden">
             <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
@@ -370,7 +370,7 @@ export function TransactionList() {
                         {category && transaction.type !== "transfer" ? (
                           <div className="flex items-center gap-1">
                             <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
-                            <span className="text-xs break-words" title={category.name}>{category.name}</span>
+                            <span className="text-xs" title={category.name}>{truncateText(category.name, 15)}</span>
                           </div>
                         ) : (
                           "-"
@@ -379,16 +379,16 @@ export function TransactionList() {
                       <TableCell>
                         {transaction.type === "transfer" && toAccount ? (
                           <div className="text-xs">
-                            <div className="font-medium break-words" title={account?.name}>{account?.name || "-"}</div>
+                            <div className="font-medium" title={account?.name}>{truncateText(account?.name || "-", 12)}</div>
                             <div className="text-center text-muted-foreground">→</div>
-                            <div className="font-medium break-words" title={toAccount.name}>{toAccount.name}</div>
+                            <div className="font-medium" title={toAccount.name}>{truncateText(toAccount.name, 12)}</div>
                           </div>
                         ) : (
-                          <span className="text-xs break-words" title={account?.name}>{account?.name || "-"}</span>
+                          <span className="text-xs" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
-                        <span className="break-words" title={counterparty?.name}>{counterparty?.name || "-"}</span>
+                        <span title={counterparty?.name}>{truncateText(counterparty?.name || "-", 15)}</span>
                       </TableCell>
                       <TableCell
                         className={cn("text-right font-semibold tabular-nums text-xs", {
@@ -401,9 +401,7 @@ export function TransactionList() {
                         {formatCurrency(transaction.amount, transaction.currency)}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        <div className="break-words">
-                          <span title={transaction.comment}>{transaction.comment || "-"}</span>
-                        </div>
+                        <span title={transaction.comment}>{truncateText(transaction.comment || "-", 20)}</span>
                       </TableCell>
                     </TableRow>
                   )
