@@ -387,8 +387,8 @@ export function TransactionList() {
             </p>
           </div>
         ) : (
-          <div className="overflow-y-auto max-h-[600px]">
-            <Table className="w-full">
+          <div className="overflow-y-auto max-h-[600px] overflow-x-hidden">
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">
@@ -397,13 +397,13 @@ export function TransactionList() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead className="min-w-[90px]">Дата</TableHead>
-                  <TableHead className="min-w-[80px]">Тип</TableHead>
-                  <TableHead className="min-w-[120px]">Категория</TableHead>
-                  <TableHead className="min-w-[140px]">Счёт</TableHead>
-                  <TableHead className="min-w-[120px]">Контрагент</TableHead>
-                  <TableHead className="min-w-[100px] text-right">Сумма</TableHead>
-                  <TableHead className="min-w-[200px]">Комментарий</TableHead>
+                  <TableHead className="w-[90px]">Дата</TableHead>
+                  <TableHead className="w-[80px]">Тип</TableHead>
+                  <TableHead className="w-[120px]">Категория</TableHead>
+                  <TableHead className="w-[140px]">Счёт</TableHead>
+                  <TableHead className="w-[120px]">Контрагент</TableHead>
+                  <TableHead className="w-[100px] text-right">Сумма</TableHead>
+                  <TableHead className="w-[150px]">Комментарий</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -427,7 +427,7 @@ export function TransactionList() {
                           onCheckedChange={(checked) => handleSelectTransaction(transaction.id, checked as boolean)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-xs whitespace-nowrap">{formatDate(transaction.date)}</TableCell>
+                      <TableCell className="font-medium text-xs">{formatDate(transaction.date)}</TableCell>
                       <TableCell>
                         <Badge className={cn("font-medium text-xs px-1 py-0", getTypeColor(transaction.type))}>
                           {getTypeLabel(transaction.type)}
@@ -437,7 +437,7 @@ export function TransactionList() {
                         {category && transaction.type !== "transfer" ? (
                           <div className="flex items-center gap-1">
                             <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
-                            <span className="text-xs break-words" title={category.name}>{category.name}</span>
+                            <span className="text-xs" title={category.name}>{truncateText(category.name, 15)}</span>
                           </div>
                         ) : (
                           "-"
@@ -446,19 +446,19 @@ export function TransactionList() {
                       <TableCell>
                         {transaction.type === "transfer" && toAccount ? (
                           <div className="text-xs">
-                            <div className="font-medium break-words" title={account?.name}>{account?.name || "-"}</div>
+                            <div className="font-medium" title={account?.name}>{truncateText(account?.name || "-", 12)}</div>
                             <div className="text-center text-muted-foreground">→</div>
-                            <div className="font-medium break-words" title={toAccount.name}>{toAccount.name}</div>
+                            <div className="font-medium" title={toAccount.name}>{truncateText(toAccount.name, 12)}</div>
                           </div>
                         ) : (
-                          <span className="text-xs break-words" title={account?.name}>{account?.name || "-"}</span>
+                          <span className="text-xs" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
-                        <span className="break-words" title={counterparty?.name}>{counterparty?.name || "-"}</span>
+                        <span title={counterparty?.name}>{truncateText(counterparty?.name || "-", 15)}</span>
                       </TableCell>
                       <TableCell
-                        className={cn("text-right font-semibold tabular-nums text-xs whitespace-nowrap", {
+                        className={cn("text-right font-semibold tabular-nums text-xs", {
                           "text-green-600 dark:text-green-400": transaction.type === "income",
                           "text-red-600 dark:text-red-400": transaction.type === "expense",
                           "text-blue-600 dark:text-blue-400": transaction.type === "transfer",
@@ -468,7 +468,7 @@ export function TransactionList() {
                         {formatCurrency(transaction.amount, transaction.currency)}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        <span className="break-words whitespace-pre-wrap" title={transaction.comment}>{transaction.comment || "-"}</span>
+                        <span title={transaction.comment}>{truncateText(transaction.comment || "-", 20)}</span>
                       </TableCell>
                     </TableRow>
                   )
