@@ -160,8 +160,27 @@ export function TransactionList() {
   const handleBulkEditSubmit = () => {
     if (selectedTransactions.size === 0) return
 
+    // Проверяем, что функция updateTransaction существует
+    if (typeof updateTransaction !== 'function') {
+      console.error('updateTransaction function is not available')
+      toast({
+        title: "Ошибка",
+        description: "Функция обновления недоступна",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
+      let updatedCount = 0
       selectedTransactions.forEach(id => {
+        // Проверяем, что транзакция существует
+        const transaction = transactions.find(t => t.id === id)
+        if (!transaction) {
+          console.warn(`Transaction with id ${id} not found`)
+          return
+        }
+
         const updates: any = {}
         if (bulkEditData.accountId) updates.accountId = bulkEditData.accountId
         if (bulkEditData.categoryId) updates.categoryId = bulkEditData.categoryId
@@ -170,7 +189,12 @@ export function TransactionList() {
         if (bulkEditData.counterpartyId) updates.counterpartyId = bulkEditData.counterpartyId
         
         if (Object.keys(updates).length > 0) {
-          updateTransaction(id, updates)
+          try {
+            updateTransaction(id, updates)
+            updatedCount++
+          } catch (error) {
+            console.error(`Error updating transaction ${id}:`, error)
+          }
         }
       })
       
@@ -184,12 +208,20 @@ export function TransactionList() {
         counterpartyId: ""
       })
       
-      toast({
-        title: "Успешно",
-        description: `Обновлено ${selectedTransactions.size} транзакций`,
-      })
+      if (updatedCount > 0) {
+        toast({
+          title: "Успешно",
+          description: `Обновлено ${updatedCount} транзакций`,
+        })
+      } else {
+        toast({
+          title: "Предупреждение",
+          description: "Не было обновлено ни одной транзакции",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
-      console.error("Error updating transactions:", error)
+      console.error("Error in bulk edit:", error)
       toast({
         title: "Ошибка",
         description: "Не удалось обновить транзакции",
