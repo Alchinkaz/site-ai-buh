@@ -105,22 +105,22 @@ export function TransactionForm({ onSuccess, onCancel, transaction }: Transactio
   const filteredCategories = categories.filter((c) => c.type === type)
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-full">
+    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-full overflow-hidden">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="date">Дата *</Label>
-          <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="w-full" />
+          <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="w-full max-w-full" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="amount">Сумма *</Label>
-          <Input id="amount" type="number" step="0.01" min="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} required className="w-full" />
+          <Input id="amount" type="number" step="0.01" min="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} required className="w-full max-w-full" />
         </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="type">Тип транзакции *</Label>
         <Select value={type} onValueChange={(value) => { setType(value as TransactionType); setCategoryId(""); setToAccountId("") }}>
-          <SelectTrigger id="type" className="break-words"><SelectValue /></SelectTrigger>
+          <SelectTrigger id="type" className="w-full max-w-full break-words overflow-hidden"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="income">Доход</SelectItem>
             <SelectItem value="expense">Расход</SelectItem>
@@ -134,7 +134,7 @@ export function TransactionForm({ onSuccess, onCancel, transaction }: Transactio
           <div className="space-y-2">
             <Label htmlFor="fromAccount">Со счёта *</Label>
             <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger id="fromAccount" className="break-words"><SelectValue placeholder="Выберите счёт" /></SelectTrigger>
+              <SelectTrigger id="fromAccount" className="w-full max-w-full break-words overflow-hidden"><SelectValue placeholder="Выберите счёт" /></SelectTrigger>
               <SelectContent>
                 {accounts.map((account) => (
                   <SelectItem key={account.id} value={account.id}>{account.name} ({account.balance.toLocaleString()} {account.currency})</SelectItem>
@@ -145,7 +145,7 @@ export function TransactionForm({ onSuccess, onCancel, transaction }: Transactio
           <div className="space-y-2">
             <Label htmlFor="toAccount">На счёт *</Label>
             <Select value={toAccountId} onValueChange={setToAccountId}>
-              <SelectTrigger id="toAccount" className="break-words"><SelectValue placeholder="Выберите счёт" /></SelectTrigger>
+              <SelectTrigger id="toAccount" className="w-full max-w-full break-words overflow-hidden"><SelectValue placeholder="Выберите счёт" /></SelectTrigger>
               <SelectContent>
                 {accounts.filter((a) => a.id !== accountId).map((account) => (
                   <SelectItem key={account.id} value={account.id}>{account.name} ({account.balance.toLocaleString()} {account.currency})</SelectItem>
@@ -158,7 +158,7 @@ export function TransactionForm({ onSuccess, onCancel, transaction }: Transactio
         <div className="space-y-2">
           <Label htmlFor="account">Счёт *</Label>
           <Select value={accountId} onValueChange={setAccountId}>
-            <SelectTrigger id="account" className="break-words"><SelectValue placeholder="Выберите счёт" /></SelectTrigger>
+            <SelectTrigger id="account" className="w-full max-w-full break-words overflow-hidden"><SelectValue placeholder="Выберите счёт" /></SelectTrigger>
             <SelectContent>
               {accounts.map((account) => (
                 <SelectItem key={account.id} value={account.id}>{account.name} ({account.balance.toLocaleString()} {account.currency})</SelectItem>
@@ -172,7 +172,7 @@ export function TransactionForm({ onSuccess, onCancel, transaction }: Transactio
         <div className="space-y-2">
           <Label htmlFor="category">Категория *</Label>
           <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger id="category" className="break-words"><SelectValue placeholder="Выберите категорию" /></SelectTrigger>
+            <SelectTrigger id="category" className="w-full max-w-full break-words overflow-hidden"><SelectValue placeholder="Выберите категорию" /></SelectTrigger>
             <SelectContent>
               {filteredCategories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
@@ -191,7 +191,7 @@ export function TransactionForm({ onSuccess, onCancel, transaction }: Transactio
         <div className="space-y-2">
           <Label htmlFor="counterparty">Контрагент (необязательно)</Label>
           <Select value={counterpartyId} onValueChange={setCounterpartyId}>
-            <SelectTrigger id="counterparty" className="break-words"><SelectValue placeholder="Выберите контрагента" /></SelectTrigger>
+            <SelectTrigger id="counterparty" className="w-full max-w-full break-words overflow-hidden"><SelectValue placeholder="Выберите контрагента" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="no-counterparty">Без контрагента</SelectItem>
               {counterparties.map((cp) => (
@@ -210,13 +210,13 @@ export function TransactionForm({ onSuccess, onCancel, transaction }: Transactio
             value={comment} 
             onChange={(e) => setComment(e.target.value)} 
             rows={3}
-            className="resize-none break-words whitespace-pre-wrap"
+            className="w-full max-w-full resize-none break-words whitespace-pre-wrap overflow-hidden"
           />
         </div>
 
-      <div className="flex gap-3 pt-4">
-        <Button type="submit" className="flex-1" disabled={isSubmitting}>{isSubmitting ? "Сохранение..." : transaction ? "Обновить транзакцию" : type === "transfer" ? "Выполнить перевод" : "Сохранить транзакцию"}</Button>
-        {onCancel && (<Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>Отмена</Button>)}
+      <div className="flex gap-3 pt-4 w-full max-w-full">
+        <Button type="submit" className="flex-1 max-w-full" disabled={isSubmitting}>{isSubmitting ? "Сохранение..." : transaction ? "Обновить транзакцию" : type === "transfer" ? "Выполнить перевод" : "Сохранить транзакцию"}</Button>
+        {onCancel && (<Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="flex-shrink-0">Отмена</Button>)}
       </div>
     </form>
   )
