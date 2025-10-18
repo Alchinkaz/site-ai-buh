@@ -159,6 +159,8 @@ export function StatementImport() {
 
   const parse1CClientBankExchangeTxt = (content: string) => {
     const results: any[] = []
+    const seenTransactions = new Set<string>() // Для отслеживания дубликатов
+    
     // Разбиваем по операциям
     const blocks = content.split(/СекцияДокумент=/i).slice(1)
     
@@ -218,6 +220,16 @@ export function StatementImport() {
         // Определяем контрагента: для дохода — плательщик, для расхода — получатель
         const counterpartyName = type === 'income' ? payerName : receiverName
 
+        // Исключаем записи без контрагента или с пустыми полями
+        if (!counterpartyName || counterpartyName.trim() === '' || counterpartyName === '-') {
+          return
+        }
+
+        // Исключаем внутренние переводы
+        if (counterpartyName.toLowerCase().includes('alchin') || purposeText.toLowerCase().includes('своего счета')) {
+          return
+        }
+
         const account = accounts.find((a) => a.id === selectedAccountId)
         if (!account) return
 
@@ -242,6 +254,17 @@ export function StatementImport() {
             contactInfo: '' 
           })
         }
+
+        // Создаем уникальный ключ для проверки дубликатов (игнорируем сумму как просили)
+        const transactionKey = `${date}_${counterpartyName}_${type}`
+        
+        // Проверяем, не встречалась ли уже такая транзакция
+        if (seenTransactions.has(transactionKey)) {
+          console.log(`Пропущен дубликат: ${date} - ${counterpartyName} - ${type}`)
+          return
+        }
+        
+        seenTransactions.add(transactionKey)
 
         results.push({
           accountId: account.id,
