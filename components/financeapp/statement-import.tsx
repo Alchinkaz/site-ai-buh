@@ -157,62 +157,29 @@ export function StatementImport() {
     return "Прочее"
   }
 
-  // Функция для сопоставления банка из выписки с существующими счетами
-  function findMatchingAccount(bankName: string): string | null {
-    if (!bankName || bankName.trim() === '') return null
+  // Функция для сопоставления ИИК из выписки с существующими счетами
+  function findMatchingAccountByIIK(accountIIK: string): string | null {
+    if (!accountIIK || accountIIK.trim() === '') return null
     
-    const bankLower = bankName.toLowerCase()
+    const iikTrimmed = accountIIK.trim()
     
-    // Маппинг банков на названия счетов
-    const bankMappings: { [key: string]: string[] } = {
-      'kaspi': ['kaspi', 'kaspi bank', 'kaspi pay'],
-      'forte': ['forte', 'forte bank', 'fortebank'],
-      'halyk': ['halyk', 'halyk bank', 'halykbank'],
-      'centercredit': ['centercredit', 'center credit', 'centercredit bank'],
-      'jysan': ['jysan', 'jysan bank'],
-      'homecredit': ['homecredit', 'home credit', 'homecredit bank'],
-      'tengri': ['tengri', 'tengri bank'],
-      'altyn': ['altyn', 'altyn bank'],
-      'sberbank': ['sberbank', 'sber bank'],
-      'vtb': ['vtb', 'vtb bank'],
-      'raiffeisen': ['raiffeisen', 'raiffeisen bank'],
-      'citibank': ['citibank', 'citi bank'],
-      'hsbc': ['hsbc'],
-      'demir': ['demir', 'demir bank'],
-      'first heartland': ['first heartland', 'first heartland jysan'],
-      'europharma': ['europharma', 'europharma bank'],
-      'kz': ['kz', 'kz bank'],
-      'kassa nova': ['kassa nova', 'kassa nova bank'],
-      'kzpost': ['kzpost', 'kzpost bank'],
-      'otp': ['otp', 'otp bank'],
-      'qazkom': ['qazkom', 'qazkom bank'],
-      'shinhan': ['shinhan', 'shinhan bank'],
-      'turan': ['turan', 'turan bank'],
-      'unistream': ['unistream', 'unistream bank'],
-      'zaman': ['zaman', 'zaman bank']
-    }
-    
-    // Ищем совпадения в маппинге
-    for (const [bankKey, variations] of Object.entries(bankMappings)) {
-      if (variations.some(variation => bankLower.includes(variation))) {
-        // Ищем счет с похожим названием
-        const matchingAccount = accounts.find(account => 
-          account.name.toLowerCase().includes(bankKey) || 
-          variations.some(variation => account.name.toLowerCase().includes(variation))
-        )
-        if (matchingAccount) {
-          return matchingAccount.name
-        }
+    // Ищем счет с соответствующим номером счета (ИИК)
+    const matchingAccount = accounts.find(account => {
+      if (!account.accountNumber) return false
+      
+      // Сравниваем ИИК напрямую
+      if (account.accountNumber.trim() === iikTrimmed) {
+        return true
       }
-    }
-    
-    // Если точного совпадения нет, ищем частичные совпадения
-    const partialMatch = accounts.find(account => {
-      const accountName = account.name.toLowerCase()
-      return bankLower.includes(accountName) || accountName.includes(bankLower)
+      
+      // Также проверяем частичное совпадение (на случай разных форматов)
+      const accountNumber = account.accountNumber.replace(/\s+/g, '')
+      const iikClean = iikTrimmed.replace(/\s+/g, '')
+      
+      return accountNumber === iikClean
     })
     
-    return partialMatch ? partialMatch.name : null
+    return matchingAccount ? matchingAccount.name : null
   }
 
   const parse1CClientBankExchangeTxt = (content: string) => {
@@ -271,23 +238,23 @@ export function StatementImport() {
         const receiver = block.match(/ПолучательНаименование=(.+)/i)
         const purpose = block.match(/НазначениеПлатежа=(.+)/i)
         
-        // Банковские данные
-        const payerBank = block.match(/ПлательщикБанкНаименование=(.+)/i)
-        const receiverBank = block.match(/ПолучательБанкНаименование=(.+)/i)
+        // ИИК данные
+        const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
+        const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
 
         const payerName = payer?.[1]?.trim() || ''
         const receiverName = receiver?.[1]?.trim() || ''
         const purposeText = purpose?.[1]?.trim() || ''
-        const payerBankName = payerBank?.[1]?.trim() || ''
-        const receiverBankName = receiverBank?.[1]?.trim() || ''
+        const payerIIKValue = payerIIK?.[1]?.trim() || ''
+        const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
 
         // Определяем контрагента: для дохода — плательщик, для расхода — получатель
         const counterpartyName = type === 'income' ? payerName : receiverName
         
-        // Определяем банк на основе направления платежа
-        // Если доход (кто-то отправил нам) - берем банк получателя (наш банк)
-        // Если расход (мы отправили кому-то) - берем банк плательщика (наш банк)
-        const bankName = type === 'income' ? receiverBankName : payerBankName
+        // Определяем ИИК на основе направления платежа
+        // Если доход (кто-то отправил нам) - берем ИИК получателя (наш ИИК)
+        // Если расход (мы отправили кому-то) - берем ИИК плательщика (наш ИИК)
+        const accountIIK = type === 'income' ? receiverIIKValue : payerIIKValue
 
         // Исключаем записи без контрагента или с пустыми полями
         if (!counterpartyName || counterpartyName.trim() === '' || counterpartyName === '-') {
@@ -344,7 +311,7 @@ export function StatementImport() {
           categoryId: category?.id || '',
           counterpartyId: counterparty?.id || '',
           currency: account.currency,
-          bankName: bankName, // Добавляем информацию о банке
+          accountIIK: accountIIK, // Добавляем ИИК счета
         })
       } catch (error) {
         console.error('Error parsing 1C block:', error)
@@ -382,34 +349,34 @@ export function StatementImport() {
         }
         txs = process(rows)
       }
-      // Собираем информацию о банках для подсказки
-      const bankNames = new Set<string>()
+      // Собираем информацию об ИИК для подсказки
+      const accountIIKs = new Set<string>()
       const selectedAccount = accounts.find(a => a.id === selectedAccountId)
       
       txs.forEach((tx) => {
-        if (tx.bankName && tx.bankName.trim() !== '') {
-          bankNames.add(tx.bankName)
+        if (tx.accountIIK && tx.accountIIK.trim() !== '') {
+          accountIIKs.add(tx.accountIIK)
         }
         addTransaction(tx)
       })
       
       setStatus('success')
       
-      // Проверяем соответствие выбранного счета и банка выписки
+      // Проверяем соответствие выбранного счета и ИИК выписки
       let warningMessage = ''
-      if (bankNames.size > 0 && selectedAccount) {
-        const bankName = Array.from(bankNames)[0] // Берем первый банк
-        const suggestedAccount = findMatchingAccount(bankName)
+      if (accountIIKs.size > 0 && selectedAccount) {
+        const accountIIK = Array.from(accountIIKs)[0] // Берем первый ИИК
+        const suggestedAccount = findMatchingAccountByIIK(accountIIK)
         
         if (suggestedAccount && suggestedAccount.toLowerCase() !== selectedAccount.name.toLowerCase()) {
-          warningMessage = `\n\n⚠️ Внимание: Выбран счет "${selectedAccount.name}", но выписка от банка "${bankName}". Рекомендуется выбрать счет "${suggestedAccount}".`
+          warningMessage = `\n\n⚠️ Внимание: Выбран счет "${selectedAccount.name}", но выписка по ИИК "${accountIIK}". Рекомендуется выбрать счет "${suggestedAccount}".`
         }
       }
       
-      const bankInfo = bankNames.size > 0 
-        ? `\n\nБанк выписки: ${Array.from(bankNames).join(', ')}`
+      const iikInfo = accountIIKs.size > 0 
+        ? `\n\nИИК выписки: ${Array.from(accountIIKs).join(', ')}`
         : ''
-      setMessage(`Импортировано ${txs.length} операций${bankInfo}${warningMessage}`)
+      setMessage(`Импортировано ${txs.length} операций${iikInfo}${warningMessage}`)
     } catch (e: any) {
       setStatus('error')
       setMessage(e?.message || 'Ошибка импорта')
