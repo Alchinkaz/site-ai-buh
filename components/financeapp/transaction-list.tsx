@@ -337,7 +337,6 @@ export function TransactionList() {
                   <TableHead className="w-[120px]">Контрагент</TableHead>
                   <TableHead className="w-[100px] text-right">Сумма</TableHead>
                   <TableHead className="w-[150px]">Комментарий</TableHead>
-                  <TableHead className="w-[80px]">Действия</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -350,8 +349,12 @@ export function TransactionList() {
                   const counterparty = counterparties.find((cp) => cp.id === transaction.counterpartyId)
 
                   return (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
+                    <TableRow 
+                      key={transaction.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleEdit(transaction)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedTransactions.has(transaction.id)}
                           onCheckedChange={(checked) => handleSelectTransaction(transaction.id, checked as boolean)}
@@ -404,32 +407,15 @@ export function TransactionList() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleShowDetails(transaction)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleShowDetails(transaction)
+                              }}
                               className="h-5 px-1 text-xs text-blue-600 hover:text-blue-800"
                             >
                               ...
                             </Button>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(transaction)}
-                            className="h-6 w-6 hover:bg-blue-100"
-                          >
-                            <Pencil className="h-3 w-3 text-blue-600" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(transaction.id)}
-                            className="h-6 w-6 hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-3 w-3 text-destructive" />
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
