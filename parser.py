@@ -2,7 +2,9 @@ import re
 import csv
 from pathlib import Path
 
-INPUT_FILE = "vipiska_forte.txt"
+# === Настройки ===
+
+INPUT_FILE = "vipiska_forte.txt"      # путь к файлу выписки
 OUTPUT_FILE = "parsed_result.csv"
 
 CATEGORIES = {
@@ -26,10 +28,9 @@ def detect_category(text: str) -> str:
 
 
 def parse_1c_file(text: str) -> list[dict]:
-    # Берем только блоки ПлатежноеПоручение (второй уровень)
+    # Берём только полноценные документы (выписку игнорируем)
     blocks = re.findall(r"СекцияДокумент=ПлатежноеПоручение[\s\S]*?КонецДокумента", text, re.IGNORECASE)
     results = []
-    seen_transactions = set()  # Для отслеживания дубликатов
 
     for block in blocks:
         # Дата
@@ -38,14 +39,17 @@ def parse_1c_file(text: str) -> list[dict]:
 
         # Сумма
         sum_match = re.search(r"Сумма=(.+)", block)
-        amount = float(sum_match.group(1).replace(",", ".")) if sum_match else 0.0
+        if not sum_match:
+            continue
+        amount = float(sum_match.group(1).replace(",", "."))
 
-        # Определяем тип по тому, кто Alchin: плательщик или получатель
+        # Контрагенты
         payer = re.search(r"ПлательщикНаименование=(.+)", block)
         receiver = re.search(r"ПолучательНаименование=(.+)", block)
         payer_name = payer.group(1).strip() if payer else ""
         receiver_name = receiver.group(1).strip() if receiver else ""
 
+        # Определяем направление
         if "alchin" in payer_name.lower():
             type_ = "Расход"
             amount = -amount
@@ -54,20 +58,9 @@ def parse_1c_file(text: str) -> list[dict]:
             type_ = "Доход"
             counterparty = payer_name
 
-        # Назначение
+        # Назначение платежа
         purpose = re.search(r"НазначениеПлатежа=(.+)", block)
         purpose_text = purpose.group(1).strip() if purpose else ""
-
-        # Создаем уникальный ключ для проверки дубликатов
-        # Используем только дату, сумму и контрагента (без назначения, так как оно может отличаться)
-        transaction_key = f"{date}_{amount}_{counterparty}"
-        
-        # Проверяем, не встречалась ли уже такая транзакция
-        if transaction_key in seen_transactions:
-            print(f"⚠️  Пропущен дубликат: {date} - {amount} - {counterparty}")
-            continue
-        
-        seen_transactions.add(transaction_key)
 
         category = detect_category(purpose_text)
 
