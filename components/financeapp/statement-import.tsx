@@ -260,12 +260,12 @@ export function StatementImport() {
             const payerIIKValue = payerIIK?.[1]?.trim() || ''
             const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
             
-            // Проверяем, какие ИИК принадлежат нашим счетам
+            // Проверяем, какие номера счетов принадлежат нашим счетам
             const isPayerOurAccount = accounts.some(acc => acc.accountNumber === payerIIKValue)
             const isReceiverOurAccount = accounts.some(acc => acc.accountNumber === receiverIIKValue)
             
             if (isPayerOurAccount && isReceiverOurAccount) {
-              // Если оба ИИК - наши счета, это перевод между счетами
+              // Если оба номера счетов - наши счета, это перевод между счетами
               type = 'transfer'
             } else if (isPayerOurAccount) {
               // Если плательщик - наш счет, это расход
