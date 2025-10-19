@@ -216,6 +216,22 @@ export function StatementImport() {
     )
   }
 
+  // Функция для тестирования логики определения типа транзакции
+  function testTransactionType(payerIIK: string, receiverIIK: string): string {
+    const isPayerOurAccount = accounts.some(acc => acc.accountNumber === payerIIK)
+    const isReceiverOurAccount = accounts.some(acc => acc.accountNumber === receiverIIK)
+    
+    if (isPayerOurAccount && isReceiverOurAccount) {
+      return 'transfer'
+    } else if (isPayerOurAccount) {
+      return 'expense'
+    } else if (isReceiverOurAccount) {
+      return 'income'
+    } else {
+      return 'unknown'
+    }
+  }
+
   const parse1CClientBankExchangeTxt = (content: string) => {
     const results: any[] = []
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
@@ -264,22 +280,30 @@ export function StatementImport() {
             const isPayerOurAccount = accounts.some(acc => acc.accountNumber === payerIIKValue)
             const isReceiverOurAccount = accounts.some(acc => acc.accountNumber === receiverIIKValue)
             
+            console.log(`Плательщик ИИК: ${payerIIKValue}, Получатель ИИК: ${receiverIIKValue}`)
+            console.log(`Плательщик наш счет: ${isPayerOurAccount}, Получатель наш счет: ${isReceiverOurAccount}`)
+            
             if (isPayerOurAccount && isReceiverOurAccount) {
               // Если оба номера счетов - наши счета, это перевод между счетами
               type = 'transfer'
+              console.log('Определен тип: transfer (перевод между счетами)')
             } else if (isPayerOurAccount) {
               // Если плательщик - наш счет, это расход
               type = 'expense'
+              console.log('Определен тип: expense (расход)')
             } else if (isReceiverOurAccount) {
               // Если получатель - наш счет, это доход
               type = 'income'
+              console.log('Определен тип: income (доход)')
             } else {
               // Fallback: используем старую логику по имени
               const payer = block.match(/ПлательщикНаименование=(.+)/i)
               if (payer && /alchin/i.test(payer[1])) {
                 type = 'expense'
+                console.log('Определен тип: expense (по имени плательщика)')
               } else {
                 type = 'income'
+                console.log('Определен тип: income (по умолчанию)')
               }
             }
             amount = parseFloat(raw)
@@ -317,14 +341,17 @@ export function StatementImport() {
           counterpartyName = `Перевод между счетами`
           accountIIK = payerIIKValue // Счет откуда
           toAccountIIK = receiverIIKValue // Счет куда
+          console.log(`Перевод: ${accountIIK} → ${toAccountIIK}, контрагент: ${counterpartyName}`)
         } else if (type === 'income') {
           // Для доходов: контрагент - плательщик, счет - получатель (наш счет)
           counterpartyName = payerName
           accountIIK = receiverIIKValue
+          console.log(`Доход: контрагент ${counterpartyName}, счет ${accountIIK}`)
         } else if (type === 'expense') {
           // Для расходов: контрагент - получатель, счет - плательщик (наш счет)
           counterpartyName = receiverName
           accountIIK = payerIIKValue
+          console.log(`Расход: контрагент ${counterpartyName}, счет ${accountIIK}`)
         }
 
         // Исключаем записи без контрагента или с пустыми полями
