@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Search, Filter, ArrowRight, Pencil, Edit3, X } from "lucide-react"
+import { Trash2, Search, Filter, ArrowRight, Pencil, Edit3, X, ChevronUp, ChevronDown } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TransactionForm } from "@/components/financeapp/transaction-form"
 import { cn } from "@/lib/utils"
@@ -42,9 +42,74 @@ export function TransactionList() {
   })
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedTransactionDetails, setSelectedTransactionDetails] = useState<any>(null)
+  
+  // Состояние для сортировки
+  const [sortColumn, setSortColumn] = useState<string>("date")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+  // Функция сортировки транзакций
+  const sortTransactions = (transactions: any[], column: string, direction: "asc" | "desc") => {
+    return [...transactions].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      switch (column) {
+        case "date":
+          aValue = new Date(a.date).getTime()
+          bValue = new Date(b.date).getTime()
+          break
+        case "type":
+          aValue = a.type
+          bValue = b.type
+          break
+        case "category":
+          const aCategory = categories.find(c => c.id === a.categoryId)
+          const bCategory = categories.find(c => c.id === b.categoryId)
+          aValue = aCategory?.name || ""
+          bValue = bCategory?.name || ""
+          break
+        case "account":
+          const aAccount = accounts.find(acc => acc.id === a.accountId)
+          const bAccount = accounts.find(acc => acc.id === b.accountId)
+          aValue = aAccount?.name || ""
+          bValue = bAccount?.name || ""
+          break
+        case "counterparty":
+          const aCounterparty = counterparties.find(cp => cp.id === a.counterpartyId)
+          const bCounterparty = counterparties.find(cp => cp.id === b.counterpartyId)
+          aValue = aCounterparty?.name || ""
+          bValue = bCounterparty?.name || ""
+          break
+        case "amount":
+          aValue = a.amount
+          bValue = b.amount
+          break
+        case "comment":
+          aValue = a.comment || ""
+          bValue = b.comment || ""
+          break
+        default:
+          return 0
+      }
+
+      if (aValue < bValue) return direction === "asc" ? -1 : 1
+      if (aValue > bValue) return direction === "asc" ? 1 : -1
+      return 0
+    })
+  }
+
+  // Обработчик клика на заголовок колонки
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortColumn(column)
+      setSortDirection("asc")
+    }
+  }
 
   const allFilteredTransactions = useMemo(() => {
-    return transactions
+    const filtered = transactions
       .filter((t) => {
         if (filterType !== "all" && t.type !== filterType) return false
         if (filterCategory !== "all" && t.categoryId !== filterCategory) return false
@@ -65,8 +130,10 @@ export function TransactionList() {
         }
         return true
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [transactions, accounts, categories, counterparties, searchTerm, filterType, filterCategory])
+    
+    // Применяем сортировку
+    return sortTransactions(filtered, sortColumn, sortDirection)
+  }, [transactions, accounts, categories, counterparties, searchTerm, filterType, filterCategory, sortColumn, sortDirection])
 
   const totalPages = Math.ceil(allFilteredTransactions.length / limit)
   const startIndex = (currentPage - 1) * limit
@@ -397,13 +464,83 @@ export function TransactionList() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead className="w-[90px]">Дата</TableHead>
-                  <TableHead className="w-[80px]">Тип</TableHead>
-                  <TableHead className="w-[120px]">Категория</TableHead>
-                  <TableHead className="w-[140px]">Счёт</TableHead>
-                  <TableHead className="w-[120px]">Контрагент</TableHead>
-                  <TableHead className="w-[100px] text-right">Сумма</TableHead>
-                  <TableHead className="w-[150px]">Комментарий</TableHead>
+                  <TableHead 
+                    className="w-[90px] cursor-pointer hover:bg-muted/50 select-none" 
+                    onClick={() => handleSort("date")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Дата
+                      {sortColumn === "date" && (
+                        sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="w-[80px] cursor-pointer hover:bg-muted/50 select-none" 
+                    onClick={() => handleSort("type")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Тип
+                      {sortColumn === "type" && (
+                        sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="w-[120px] cursor-pointer hover:bg-muted/50 select-none" 
+                    onClick={() => handleSort("category")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Категория
+                      {sortColumn === "category" && (
+                        sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="w-[140px] cursor-pointer hover:bg-muted/50 select-none" 
+                    onClick={() => handleSort("account")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Счёт
+                      {sortColumn === "account" && (
+                        sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="w-[120px] cursor-pointer hover:bg-muted/50 select-none" 
+                    onClick={() => handleSort("counterparty")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Контрагент
+                      {sortColumn === "counterparty" && (
+                        sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="w-[100px] text-right cursor-pointer hover:bg-muted/50 select-none" 
+                    onClick={() => handleSort("amount")}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Сумма
+                      {sortColumn === "amount" && (
+                        sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="w-[150px] cursor-pointer hover:bg-muted/50 select-none" 
+                    onClick={() => handleSort("comment")}
+                  >
+                    <div className="flex items-center gap-1">
+                      Комментарий
+                      {sortColumn === "comment" && (
+                        sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
