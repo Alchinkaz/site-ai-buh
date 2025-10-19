@@ -313,11 +313,25 @@ export function StatementImport() {
               type = 'transfer'
               console.log('✅ Определен тип: TRANSFER (перевод между своими счетами)')
             } else if (isPayerOurAccount) {
-              type = 'expense'
-              console.log('✅ Определен тип: EXPENSE (расход с нашего счета)')
+              // Дополнительная проверка: если в назначении есть слова о переводах между счетами
+              const purposeText = block.match(/НазначениеПлатежа=(.+)/i)?.[1]?.toLowerCase() || ''
+              if (purposeText.includes('своего счета') || purposeText.includes('перевод собственных средств') || purposeText.includes('перевод между')) {
+                type = 'transfer'
+                console.log('✅ Определен тип: TRANSFER (по назначению платежа - перевод между счетами)')
+              } else {
+                type = 'expense'
+                console.log('✅ Определен тип: EXPENSE (расход с нашего счета)')
+              }
             } else if (isReceiverOurAccount) {
-              type = 'income'
-              console.log('✅ Определен тип: INCOME (доход на наш счет)')
+              // Дополнительная проверка: если в назначении есть слова о переводах между счетами
+              const purposeText = block.match(/НазначениеПлатежа=(.+)/i)?.[1]?.toLowerCase() || ''
+              if (purposeText.includes('своего счета') || purposeText.includes('перевод собственных средств') || purposeText.includes('перевод между')) {
+                type = 'transfer'
+                console.log('✅ Определен тип: TRANSFER (по назначению платежа - перевод между счетами)')
+              } else {
+                type = 'income'
+                console.log('✅ Определен тип: INCOME (доход на наш счет)')
+              }
             } else {
               // Fallback: используем старую логику по имени
               const payer = block.match(/ПлательщикНаименование=(.+)/i)
@@ -364,8 +378,30 @@ export function StatementImport() {
         if (type === 'transfer') {
           // ✅ Для переводов: контрагент - это название перевода, счет откуда - плательщик, счет куда - получатель
           counterpartyName = `Перевод между счетами`
-          accountIIK = payerIIKValue // Счет откуда
-          toAccountIIK = receiverIIKValue // Счет куда
+          // Для переводов определяем счета по ИИК
+          const payerIsOurAccount = accounts.some(acc => {
+            if (!acc.accountNumber) return false
+            const accountNumber = acc.accountNumber.trim()
+            const payerIIK = payerIIKValue.trim()
+            return accountNumber === payerIIK || 
+                   accountNumber.replace(/\s+/g, '') === payerIIK.replace(/\s+/g, '')
+          })
+          const receiverIsOurAccount = accounts.some(acc => {
+            if (!acc.accountNumber) return false
+            const accountNumber = acc.accountNumber.trim()
+            const receiverIIK = receiverIIKValue.trim()
+            return accountNumber === receiverIIK || 
+                   accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
+          })
+          
+          if (payerIsOurAccount && receiverIsOurAccount) {
+            accountIIK = payerIIKValue // Счет откуда
+            toAccountIIK = receiverIIKValue // Счет куда
+          } else {
+            // Если только один счет наш, используем его как основной
+            accountIIK = payerIsOurAccount ? payerIIKValue : receiverIIKValue
+            toAccountIIK = payerIsOurAccount ? receiverIIKValue : payerIIKValue
+          }
           console.log(`🔄 ПЕРЕВОД: ${accountIIK} → ${toAccountIIK}, контрагент: ${counterpartyName}`)
         } else if (type === 'income') {
           // Для доходов: контрагент - плательщик, счет - получатель (наш счет)
@@ -384,8 +420,10 @@ export function StatementImport() {
           return
         }
 
-        // Исключаем внутренние переводы (только для доходов/расходов, не для переводов)
+        // ✅ Исключаем внутренние переводы (только для доходов/расходов, не для переводов)
+        // Но сначала проверяем, не является ли это переводом между нашими счетами
         if (type !== 'transfer' && (counterpartyName.toLowerCase().includes('alchin') || purposeText.toLowerCase().includes('своего счета'))) {
+          console.log(`⚠️ Пропущен внутренний перевод: ${counterpartyName} - ${purposeText}`)
           return
         }
 
