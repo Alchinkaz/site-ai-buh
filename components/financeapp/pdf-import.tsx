@@ -17,6 +17,7 @@ export function PDFImport() {
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [selectedAccountId, setSelectedAccountId] = useState("")
+  const [selectedBank, setSelectedBank] = useState("Kaspi")
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
 
@@ -44,9 +45,10 @@ export function PDFImport() {
     return "Прочее"
   }
 
-  const parsePDFContent = async (file: File) => {
+  const parsePDFContent = async (file: File, bankName: string) => {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('bankName', bankName)
     
     const response = await fetch('/api/parse-pdf', {
       method: 'POST',
@@ -67,7 +69,7 @@ export function PDFImport() {
     setMessage('Обработка PDF файла...')
     
     try {
-      const transactions = await parsePDFContent(file)
+      const transactions = await parsePDFContent(file, selectedBank)
       
       const account = accounts.find((a) => a.id === selectedAccountId)
       if (!account) {
@@ -159,6 +161,23 @@ export function PDFImport() {
                     {account.name} ({account.currency})
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="bank-select">Банк выписки</Label>
+            <Select value={selectedBank} onValueChange={setSelectedBank}>
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите банк" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Kaspi">Kaspi Bank</SelectItem>
+                <SelectItem value="Forte">Forte Bank</SelectItem>
+                <SelectItem value="Onlinebank">Onlinebank</SelectItem>
+                <SelectItem value="Halyk">Halyk Bank</SelectItem>
+                <SelectItem value="Jusan">Jusan Bank</SelectItem>
+                <SelectItem value="Other">Другой банк</SelectItem>
               </SelectContent>
             </Select>
           </div>
