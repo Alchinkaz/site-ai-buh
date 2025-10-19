@@ -244,11 +244,21 @@ export function StatementImport() {
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
     const duplicateCount = { count: 0 } // Счетчик дубликатов
     
+    console.log('🚀 Начинаем парсинг 1CClientBankExchange файла')
+    console.log('📊 Доступные счета в системе:', accounts.map(acc => ({ 
+      name: acc.name, 
+      accountNumber: acc.accountNumber,
+      hasAccountNumber: !!acc.accountNumber 
+    })))
+    
     // Разбиваем по операциям
     const blocks = content.split(/СекцияДокумент=/i).slice(1)
+    console.log(`📄 Найдено блоков документов: ${blocks.length}`)
     
-    blocks.forEach((block) => {
+    blocks.forEach((block, blockIndex) => {
       try {
+        console.log(`\n📋 Обрабатываем блок ${blockIndex + 1}:`)
+        
         // Дата (пробуем разные варианты)
         let dateMatch = block.match(/ДатаОперации=(.+)/i)
         if (!dateMatch) {
@@ -312,6 +322,7 @@ export function StatementImport() {
             if (isPayerOurAccount && isReceiverOurAccount) {
               type = 'transfer'
               console.log('✅ Определен тип: TRANSFER (перевод между своими счетами)')
+              console.log(`🔍 Детали: Плательщик "${payerIIKValue}" и Получатель "${receiverIIKValue}" - оба наши счета`)
             } else if (isPayerOurAccount) {
               // Дополнительная проверка: если в назначении есть слова о переводах между счетами
               const purposeText = block.match(/НазначениеПлатежа=(.+)/i)?.[1]?.toLowerCase() || ''
