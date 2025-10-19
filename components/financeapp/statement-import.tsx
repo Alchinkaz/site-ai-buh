@@ -294,22 +294,11 @@ export function StatementImport() {
             const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
             
             // Проверяем, какие номера счетов принадлежат нашим счетам
-            const isPayerOurAccount = accounts.some(acc => {
-              if (!acc.accountNumber) return false
-              // Сравниваем с учетом пробелов и регистра
-              const accountNumber = acc.accountNumber.trim()
-              const payerIIK = payerIIKValue.trim()
-              return accountNumber === payerIIK || 
-                     accountNumber.replace(/\s+/g, '') === payerIIK.replace(/\s+/g, '')
-            })
-            const isReceiverOurAccount = accounts.some(acc => {
-              if (!acc.accountNumber) return false
-              // Сравниваем с учетом пробелов и регистра
-              const accountNumber = acc.accountNumber.trim()
-              const receiverIIK = receiverIIKValue.trim()
-              return accountNumber === receiverIIK || 
-                     accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
-            })
+            const normalize = (s: string) => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+            const payerNorm = normalize(payerIIKValue)
+            const receiverNorm = normalize(receiverIIKValue)
+            const isPayerOurAccount = accounts.some(acc => acc.accountNumber && normalize(acc.accountNumber) === payerNorm)
+            const isReceiverOurAccount = accounts.some(acc => acc.accountNumber && normalize(acc.accountNumber) === receiverNorm)
             
             console.log(`🔍 Анализ ИИК:`)
             console.log(`  Плательщик ИИК: "${payerIIKValue}"`)
@@ -339,25 +328,11 @@ export function StatementImport() {
               console.log('✅ Определен тип: TRANSFER (перевод между своими счетами)')
               console.log(`🔍 Детали: Плательщик "${payerIIKValue}" и Получатель "${receiverIIKValue}" - оба наши счета`)
             } else if (isPayerOurAccount) {
-              // Дополнительная проверка: если в назначении есть слова о переводах между счетами
-              const purposeText = block.match(/НазначениеПлатежа=(.+)/i)?.[1]?.toLowerCase() || ''
-              if (purposeText.includes('своего счета') || purposeText.includes('перевод собственных средств') || purposeText.includes('перевод между')) {
-                type = 'transfer'
-                console.log('✅ Определен тип: TRANSFER (по назначению платежа - перевод между счетами)')
-              } else {
-                type = 'expense'
-                console.log('✅ Определен тип: EXPENSE (расход с нашего счета)')
-              }
+              type = 'expense'
+              console.log('✅ Определен тип: EXPENSE (расход с нашего счета по IIK)')
             } else if (isReceiverOurAccount) {
-              // Дополнительная проверка: если в назначении есть слова о переводах между счетами
-              const purposeText = block.match(/НазначениеПлатежа=(.+)/i)?.[1]?.toLowerCase() || ''
-              if (purposeText.includes('своего счета') || purposeText.includes('перевод собственных средств') || purposeText.includes('перевод между')) {
-                type = 'transfer'
-                console.log('✅ Определен тип: TRANSFER (по назначению платежа - перевод между счетами)')
-              } else {
-                type = 'income'
-                console.log('✅ Определен тип: INCOME (доход на наш счет)')
-              }
+              type = 'income'
+              console.log('✅ Определен тип: INCOME (доход на наш счет по IIK)')
             } else {
               // Fallback: используем старую логику по имени
               const payer = block.match(/ПлательщикНаименование=(.+)/i)
