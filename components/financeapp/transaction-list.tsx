@@ -23,7 +23,7 @@ const truncateText = (text: string, maxLength: number = 30) => {
 }
 
 export function TransactionList() {
-  const { transactions, accounts, categories, counterparties, deleteTransaction, updateTransaction, migrateTransactions } = useFinance()
+  const { transactions, accounts, categories, counterparties, deleteTransaction, updateTransaction } = useFinance()
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [filterCategory, setFilterCategory] = useState<string>("all")
@@ -269,17 +269,6 @@ export function TransactionList() {
             </p>
           </div>
           <div className="flex flex-col gap-2 md:flex-row">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                migrateTransactions()
-                toast.success("Транзакции мигрированы! Переводы между счетами теперь отображаются правильно.")
-              }}
-              className="h-8"
-            >
-              Исправить типы транзакций
-            </Button>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input

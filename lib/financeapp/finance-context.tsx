@@ -198,28 +198,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Функция для миграции существующих транзакций
-  const migrateTransactions = () => {
-    setTransactions((prevTransactions) => {
-      return prevTransactions.map((transaction) => {
-        // Проверяем, является ли транзакция переводом между счетами
-        if (transaction.type === "expense" && transaction.toAccountId) {
-          // Если есть toAccountId, это должен быть перевод
-          return { ...transaction, type: "transfer" as const }
-        }
-        
-        // Проверяем по комментарию, если содержит "перевод" или "своего счета"
-        const comment = transaction.comment?.toLowerCase() || ""
-        if (transaction.type === "expense" && 
-            (comment.includes("перевод") || comment.includes("своего счета"))) {
-          return { ...transaction, type: "transfer" as const }
-        }
-        
-        return transaction
-      })
-    })
-  }
-
   const updateInvoice = (id: string, updates: Partial<Invoice>) => {
     setInvoices((prev) => prev.map((invoice) => (invoice.id === id ? { ...invoice, ...updates } : invoice)))
   }
@@ -283,7 +261,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         updateCategory,
         updateCounterparty,
         updateTransaction,
-        migrateTransactions,
         updateInvoice,
         deleteCategory,
         deleteCounterparty,
