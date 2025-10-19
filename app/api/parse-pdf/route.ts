@@ -41,21 +41,37 @@ async function parsePDFContent(buffer: Buffer, bankName: string = 'Kaspi'): Prom
           }
           
           if (code !== 0) {
-            reject(new Error(`Python скрипт завершился с ошибкой: ${errorOutput}`))
+            console.error('Python скрипт завершился с ошибкой:', errorOutput)
+            reject(new Error(`Python скрипт завершился с ошибкой (код ${code}): ${errorOutput}`))
             return
           }
           
           try {
+            console.log('Python скрипт output:', output)
+            
             // Парсим JSON вывод Python скрипта
             const lines = output.trim().split('\n')
             const jsonLine = lines.find(line => line.startsWith('{') || line.startsWith('['))
             
             if (!jsonLine) {
+              console.error('Не найден JSON в выводе Python скрипта. Полный вывод:', output)
               reject(new Error('Python скрипт не вернул валидный JSON'))
               return
             }
             
             const pythonData = JSON.parse(jsonLine)
+            
+            // Проверяем, есть ли ошибка в ответе
+            if (pythonData.error) {
+              reject(new Error(pythonData.error))
+              return
+            }
+            
+            // Проверяем, что это массив
+            if (!Array.isArray(pythonData)) {
+              reject(new Error('Python скрипт вернул не массив данных'))
+              return
+            }
             
             // Преобразуем данные в формат приложения
             const transactions = pythonData.map((item: any) => ({
@@ -68,6 +84,7 @@ async function parsePDFContent(buffer: Buffer, bankName: string = 'Kaspi'): Prom
             
             resolve(transactions)
           } catch (parseError) {
+            console.error('Ошибка парсинга результата Python скрипта:', parseError)
             reject(new Error(`Ошибка парсинга результата Python скрипта: ${parseError}`))
           }
         })

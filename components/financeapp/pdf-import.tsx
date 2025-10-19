@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -130,6 +130,9 @@ export function PDFImport() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Импорт транзакций из PDF</DialogTitle>
+          <DialogDescription>
+            Загрузите PDF файл банковской выписки для автоматического извлечения транзакций
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">

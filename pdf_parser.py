@@ -1,19 +1,35 @@
 import io
 import re
+import json
 import pdfplumber
 
 def parse_pdf(file_bytes: bytes, bank_name: str):
     """Парсит PDF-файл из памяти (байты) и возвращает список операций."""
-    text = ""
-    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            text += page_text + "\n"
+    try:
+        text = ""
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                text += page_text + "\n"
+    except Exception as e:
+        print(json.dumps({"error": f"Ошибка при открытии PDF: {str(e)}"}, ensure_ascii=False))
+        return []
+
+    # Проверяем, что текст не пустой
+    if not text.strip():
+        print(json.dumps({"error": "PDF файл не содержит текста или не может быть обработан"}, ensure_ascii=False))
+        return []
 
     text = text.replace("\xa0", " ")
     text = re.sub(r"[ \t]{2,}", " ", text)
 
     lines = [l.strip() for l in text.splitlines() if l.strip()]
+    
+    # Проверяем, что есть строки для обработки
+    if not lines:
+        print(json.dumps({"error": "PDF файл не содержит данных для обработки"}, ensure_ascii=False))
+        return []
+    
     operations, cur = [], []
     for line in lines:
         # если строка начинается с даты — новая операция
