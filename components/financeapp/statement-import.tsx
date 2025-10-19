@@ -253,14 +253,36 @@ export function StatementImport() {
         } else if (sumMatch) {
           const raw = sumMatch[1].trim().replace(',', '.')
           if (/^\d+\.?\d*$/.test(raw)) {
-            const payer = block.match(/ПлательщикНаименование=(.+)/i)
-            if (payer && /alchin/i.test(payer[1])) {
+            // Получаем ИИК для определения типа транзакции
+            const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
+            const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+            
+            const payerIIKValue = payerIIK?.[1]?.trim() || ''
+            const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+            
+            // Проверяем, какие ИИК принадлежат нашим счетам
+            const isPayerOurAccount = accounts.some(acc => acc.accountNumber === payerIIKValue)
+            const isReceiverOurAccount = accounts.some(acc => acc.accountNumber === receiverIIKValue)
+            
+            if (isPayerOurAccount && isReceiverOurAccount) {
+              // Если оба ИИК - наши счета, это перевод между счетами
+              type = 'transfer'
+            } else if (isPayerOurAccount) {
+              // Если плательщик - наш счет, это расход
               type = 'expense'
-              amount = parseFloat(raw)
-            } else {
+            } else if (isReceiverOurAccount) {
+              // Если получатель - наш счет, это доход
               type = 'income'
-              amount = parseFloat(raw)
+            } else {
+              // Fallback: используем старую логику по имени
+              const payer = block.match(/ПлательщикНаименование=(.+)/i)
+              if (payer && /alchin/i.test(payer[1])) {
+                type = 'expense'
+              } else {
+                type = 'income'
+              }
             }
+            amount = parseFloat(raw)
           } else {
             return // пропускаем если не число
           }
@@ -285,21 +307,33 @@ export function StatementImport() {
         const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
         const documentNumberValue = documentNumber?.[1]?.trim() || ''
 
-        // Определяем контрагента: для дохода — плательщик, для расхода — получатель
-        const counterpartyName = type === 'income' ? payerName : receiverName
+        // Определяем контрагента и счет в зависимости от типа транзакции
+        let counterpartyName = ''
+        let accountIIK = ''
+        let toAccountIIK = ''
         
-        // Определяем ИИК на основе направления платежа
-        // Если доход (кто-то отправил нам) - берем ИИК получателя (наш ИИК)
-        // Если расход (мы отправили кому-то) - берем ИИК плательщика (наш ИИК)
-        const accountIIK = type === 'income' ? receiverIIKValue : payerIIKValue
+        if (type === 'transfer') {
+          // Для переводов: контрагент - это название перевода, счет откуда - плательщик, счет куда - получатель
+          counterpartyName = `Перевод между счетами`
+          accountIIK = payerIIKValue // Счет откуда
+          toAccountIIK = receiverIIKValue // Счет куда
+        } else if (type === 'income') {
+          // Для доходов: контрагент - плательщик, счет - получатель (наш счет)
+          counterpartyName = payerName
+          accountIIK = receiverIIKValue
+        } else if (type === 'expense') {
+          // Для расходов: контрагент - получатель, счет - плательщик (наш счет)
+          counterpartyName = receiverName
+          accountIIK = payerIIKValue
+        }
 
         // Исключаем записи без контрагента или с пустыми полями
         if (!counterpartyName || counterpartyName.trim() === '' || counterpartyName === '-') {
           return
         }
 
-        // Исключаем внутренние переводы
-        if (counterpartyName.toLowerCase().includes('alchin') || purposeText.toLowerCase().includes('своего счета')) {
+        // Исключаем внутренние переводы (только для доходов/расходов, не для переводов)
+        if (type !== 'transfer' && (counterpartyName.toLowerCase().includes('alchin') || purposeText.toLowerCase().includes('своего счета'))) {
           return
         }
 
@@ -309,16 +343,31 @@ export function StatementImport() {
           console.warn(`Не найден счет для ИИК: ${accountIIK}`)
           return
         }
+        
+        // Для переводов также определяем счет получателя
+        let toAccount = null
+        if (type === 'transfer') {
+          toAccount = findAccountByIIK(toAccountIIK)
+          if (!toAccount) {
+            console.warn(`Не найден счет получателя для ИИК: ${toAccountIIK}`)
+            return
+          }
+        }
 
         // Определяем категорию
         let categoryName = detectCategoryByText(purposeText)
+        
+        // Для переводов используем специальную категорию
+        if (type === 'transfer') {
+          categoryName = 'Перевод между счетами'
+        }
 
         let category = categories.find((c) => c.name.toLowerCase() === categoryName.toLowerCase())
         if (!category) {
           category = addCategory({ 
             name: categoryName, 
-            type, 
-            color: type === 'income' ? '#10B981' : '#EF4444' 
+            type: type === 'transfer' ? 'expense' : type, // Для переводов используем тип expense
+            color: type === 'income' ? '#10B981' : type === 'transfer' ? '#3B82F6' : '#EF4444' 
           })
         }
 
@@ -351,7 +400,7 @@ export function StatementImport() {
         
         seenTransactions.add(transactionKey)
 
-        results.push({
+        const transactionData: any = {
           accountId: account.id,
           amount: Math.abs(amount),
           type,
@@ -362,7 +411,14 @@ export function StatementImport() {
           currency: account.currency,
           accountIIK: accountIIK, // Добавляем ИИК счета
           documentNumber: documentNumberValue, // Добавляем номер документа
-        })
+        }
+        
+        // Для переводов добавляем счет получателя
+        if (type === 'transfer' && toAccount) {
+          transactionData.toAccountId = toAccount.id
+        }
+        
+        results.push(transactionData)
       } catch (error) {
         console.error('Error parsing 1C block:', error)
       }
