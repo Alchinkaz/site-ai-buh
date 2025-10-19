@@ -104,6 +104,7 @@ export interface FinanceContextType {
   updateCounterparty: (id: string, updates: Partial<Counterparty>) => void
   deleteCounterparty: (id: string) => void
   updateTransaction: (id: string, updates: Partial<Transaction>) => void
+  migrateTransactions: () => void
   deleteTransaction: (id: string) => void
   updateInvoice: (id: string, updates: Partial<Invoice>) => void
   deleteInvoice: (id: string) => void
