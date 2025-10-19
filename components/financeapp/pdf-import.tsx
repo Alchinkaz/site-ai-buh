@@ -131,7 +131,12 @@ export function PDFImport() {
         <DialogHeader>
           <DialogTitle>Импорт транзакций из PDF</DialogTitle>
           <DialogDescription>
-            Загрузите PDF файл банковской выписки для автоматического извлечения транзакций
+            Загрузите PDF файл банковской выписки для автоматического извлечения транзакций.
+            {process.env.NODE_ENV === 'production' && (
+              <span className="text-amber-600 font-medium">
+                {' '}На продакшене доступен демо-режим с примером данных.
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
         
@@ -184,6 +189,16 @@ export function PDFImport() {
               </SelectContent>
             </Select>
           </div>
+
+          {process.env.NODE_ENV === 'production' && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Демо-режим:</strong> На продакшене PDF парсинг недоступен. 
+                Будет создана примерная транзакция для демонстрации функционала.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {status === 'error' && (
             <Alert variant="destructive">
