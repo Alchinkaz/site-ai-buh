@@ -11,6 +11,7 @@ import { Upload, AlertCircle, CheckCircle } from "lucide-react"
 import * as XLSX from "xlsx"
 import Papa from "papaparse"
 import { useFinance } from "@/lib/financeapp/finance-context"
+import type { Category } from "@/lib/financeapp/types"
 
 export function StatementImport() {
   const { accounts, categories, counterparties, transactions, addTransaction, addAccount, addCategory, addCounterparty } = useFinance()
@@ -49,7 +50,7 @@ export function StatementImport() {
         const description = row['Төлемнің тағайындалуы / Назначение платежа'] || ''
 
         let amount = 0
-        let type: 'income' | 'expense' = 'expense'
+        let type: 'income' | 'expense' | 'transfer' = 'expense'
         let counterpartyName = ''
         if (debit > 0 && credit === 0) { amount = debit; type = 'expense'; counterpartyName = recipient }
         else if (credit > 0 && debit === 0) { amount = credit; type = 'income'; counterpartyName = sender }
@@ -61,11 +62,13 @@ export function StatementImport() {
 
         let categoryName = type === 'income' ? 'Поступления' : 'Списания'
         if (String(description).toLowerCase().includes('зарплат')) categoryName = 'Зарплата'
-        let category = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
-        if (!category) category = addCategory({ name: categoryName, type, color: type === 'income' ? '#10B981' : '#EF4444' })
+        let category: Category | undefined = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+        if (!category) {
+          category = addCategory({ name: categoryName, type, color: type === 'income' ? '#10B981' : '#EF4444' }) as Category
+        }
 
         let counterparty = counterparties.find(cp => cp.name.toLowerCase() === String(counterpartyName).toLowerCase())
-        if (!counterparty && counterpartyName) counterparty = addCounterparty({ name: counterpartyName, type: 'organization', contactInfo: '' })
+        if (!counterparty && counterpartyName) counterparty = addCounterparty({ name: counterpartyName, type: 'supplier' })
 
         result.push({
           accountId: account.id,
@@ -91,15 +94,17 @@ export function StatementImport() {
       const debitKaspi = parseFloat((row['Сумма списания'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
       const creditKaspi = parseFloat((row['Сумма пополнения'] || '0').toString().replace(/[^\d.,]/g, '').replace(',', '.'))
       let amount = 0
-      let type: 'income' | 'expense' = 'expense'
+      let type: 'income' | 'expense' | 'transfer' = 'expense'
       if (!isNaN(amountSigned) && amountSigned !== 0) { amount = Math.abs(amountSigned); type = amountSigned > 0 ? 'income' : 'expense' }
       else if (creditKaspi > 0 || debitKaspi > 0) { amount = creditKaspi > 0 ? creditKaspi : debitKaspi; type = creditKaspi > 0 ? 'income' : 'expense' } else return
       if (!date || !amount) return
       const account = accounts.find(a => a.id === selectedAccountId) || accounts.find(a => a.type === 'bank') || accounts[0]
       if (!account) return
       const catName = type === 'income' ? 'Поступления (Kaspi)' : 'Списания (Kaspi)'
-      let category = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
-      if (!category) category = addCategory({ name: catName, type, color: type === 'income' ? '#10B981' : '#EF4444' })
+      let category: Category | undefined = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
+      if (!category) {
+        category = addCategory({ name: catName, type, color: type === 'income' ? '#10B981' : '#EF4444' }) as Category
+      }
       result.push({ accountId: account.id, amount, type, date: new Date(date).toISOString().split('T')[0], comment: description, categoryId: category?.id || '', counterpartyId: '', currency: account.currency })
     })
     return result
@@ -114,16 +119,18 @@ export function StatementImport() {
       const description = row['Назначение платежа'] || row['Комментарий'] || row['Описание'] || ''
       const counterpartyName = row['Контрагент'] || row['Организация'] || ''
       let amount = 0
-      let type: 'income' | 'expense' = 'expense'
+      let type: 'income' | 'expense' | 'transfer' = 'expense'
       if (debit > 0 && credit === 0) { amount = debit; type = 'expense' } else if (credit > 0 && debit === 0) { amount = credit; type = 'income' } else return
       if (!date || !amount) return
       const account = accounts.find(a => a.id === selectedAccountId) || accounts.find(a => a.type === 'bank') || accounts[0]
       if (!account) return
       const catName = type === 'income' ? 'Поступления (1C)' : 'Списания (1C)'
-      let category = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
-      if (!category) category = addCategory({ name: catName, type, color: type === 'income' ? '#10B981' : '#EF4444' })
+      let category: Category | undefined = categories.find(c => c.name.toLowerCase() === catName.toLowerCase())
+      if (!category) {
+        category = addCategory({ name: catName, type, color: type === 'income' ? '#10B981' : '#EF4444' }) as Category
+      }
       let counterparty = counterparties.find(cp => cp.name.toLowerCase() === String(counterpartyName).toLowerCase())
-      if (!counterparty && counterpartyName) counterparty = addCounterparty({ name: counterpartyName, type: 'organization', contactInfo: '' })
+      if (!counterparty && counterpartyName) counterparty = addCounterparty({ name: counterpartyName, type: 'supplier' })
       result.push({ accountId: account.id, amount, type, date: new Date(date).toISOString().split('T')[0], comment: description, categoryId: category?.id || '', counterpartyId: counterparty?.id || '', currency: account.currency })
     })
     return result
@@ -255,7 +262,7 @@ export function StatementImport() {
         const incomeAlt = block.match(/СуммаДоход=(.+)/i) // Forte вариант
         const sumMatch = block.match(/Сумма=(.+)/i)
 
-        let type: 'income' | 'expense' | undefined
+        let type: 'income' | 'expense' | 'transfer' | undefined
         let amount = 0
 
         if (incomeMatch || incomeAlt) {
@@ -294,31 +301,32 @@ export function StatementImport() {
                      accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
             })
             
-            console.log(`Плательщик ИИК: ${payerIIKValue}, Получатель ИИК: ${receiverIIKValue}`)
-            console.log(`Плательщик наш счет: ${isPayerOurAccount}, Получатель наш счет: ${isReceiverOurAccount}`)
-            console.log('Доступные счета в системе:', accounts.map(acc => ({ name: acc.name, accountNumber: acc.accountNumber })))
+            console.log(`🔍 Анализ ИИК:`)
+            console.log(`  Плательщик ИИК: "${payerIIKValue}"`)
+            console.log(`  Получатель ИИК: "${receiverIIKValue}"`)
+            console.log(`  Плательщик наш счет: ${isPayerOurAccount}`)
+            console.log(`  Получатель наш счет: ${isReceiverOurAccount}`)
+            console.log(`  Доступные счета в системе:`, accounts.map(acc => ({ name: acc.name, accountNumber: acc.accountNumber })))
             
+            // ✅ ОСНОВНАЯ ЛОГИКА: Если оба ИИК - наши счета, то это ПЕРЕВОД
             if (isPayerOurAccount && isReceiverOurAccount) {
-              // Если оба номера счетов - наши счета, это перевод между счетами
               type = 'transfer'
-              console.log('Определен тип: transfer (перевод между счетами)')
+              console.log('✅ Определен тип: TRANSFER (перевод между своими счетами)')
             } else if (isPayerOurAccount) {
-              // Если плательщик - наш счет, это расход
               type = 'expense'
-              console.log('Определен тип: expense (расход)')
+              console.log('✅ Определен тип: EXPENSE (расход с нашего счета)')
             } else if (isReceiverOurAccount) {
-              // Если получатель - наш счет, это доход
               type = 'income'
-              console.log('Определен тип: income (доход)')
+              console.log('✅ Определен тип: INCOME (доход на наш счет)')
             } else {
               // Fallback: используем старую логику по имени
               const payer = block.match(/ПлательщикНаименование=(.+)/i)
               if (payer && /alchin/i.test(payer[1])) {
                 type = 'expense'
-                console.log('Определен тип: expense (по имени плательщика)')
+                console.log('⚠️ Определен тип: EXPENSE (по имени плательщика - fallback)')
               } else {
                 type = 'income'
-                console.log('Определен тип: income (по умолчанию)')
+                console.log('⚠️ Определен тип: INCOME (по умолчанию - fallback)')
               }
             }
             amount = parseFloat(raw)
@@ -354,21 +362,21 @@ export function StatementImport() {
         let toAccountIIK = ''
         
         if (type === 'transfer') {
-          // Для переводов: контрагент - это название перевода, счет откуда - плательщик, счет куда - получатель
+          // ✅ Для переводов: контрагент - это название перевода, счет откуда - плательщик, счет куда - получатель
           counterpartyName = `Перевод между счетами`
           accountIIK = payerIIKValue // Счет откуда
           toAccountIIK = receiverIIKValue // Счет куда
-          console.log(`Перевод: ${accountIIK} → ${toAccountIIK}, контрагент: ${counterpartyName}`)
+          console.log(`🔄 ПЕРЕВОД: ${accountIIK} → ${toAccountIIK}, контрагент: ${counterpartyName}`)
         } else if (type === 'income') {
           // Для доходов: контрагент - плательщик, счет - получатель (наш счет)
           counterpartyName = payerName
           accountIIK = receiverIIKValue
-          console.log(`Доход: контрагент ${counterpartyName}, счет ${accountIIK}`)
+          console.log(`💰 ДОХОД: контрагент ${counterpartyName}, счет ${accountIIK}`)
         } else if (type === 'expense') {
           // Для расходов: контрагент - получатель, счет - плательщик (наш счет)
           counterpartyName = receiverName
           accountIIK = payerIIKValue
-          console.log(`Расход: контрагент ${counterpartyName}, счет ${accountIIK}`)
+          console.log(`💸 РАСХОД: контрагент ${counterpartyName}, счет ${accountIIK}`)
         }
 
         // Исключаем записи без контрагента или с пустыми полями
@@ -401,18 +409,19 @@ export function StatementImport() {
         // Определяем категорию
         let categoryName = detectCategoryByText(purposeText)
         
-        // Для переводов используем специальную категорию
+        // ✅ Для переводов используем специальную категорию
         if (type === 'transfer') {
           categoryName = 'Перевод между счетами'
         }
 
-        let category = categories.find((c) => c.name.toLowerCase() === categoryName.toLowerCase())
+        let category: Category | undefined = categories.find((c) => c.name.toLowerCase() === categoryName.toLowerCase())
         if (!category) {
           category = addCategory({ 
             name: categoryName, 
             type: type, // Используем тип транзакции (включая transfer)
             color: type === 'income' ? '#10B981' : type === 'transfer' ? '#3B82F6' : '#EF4444' 
-          })
+          }) as Category
+          console.log(`📁 Создана новая категория: "${categoryName}" (тип: ${type})`)
         }
 
         // Создаем контрагента если нужно
@@ -420,9 +429,9 @@ export function StatementImport() {
         if (!counterparty && counterpartyName) {
           counterparty = addCounterparty({ 
             name: counterpartyName, 
-            type: 'organization', 
-            contactInfo: '' 
+            type: 'supplier'
           })
+          console.log(`👤 Создан новый контрагент: "${counterpartyName}"`)
         }
 
         // Создаем уникальный ключ для проверки дубликатов по номеру документа
@@ -457,9 +466,12 @@ export function StatementImport() {
           documentNumber: documentNumberValue, // Добавляем номер документа
         }
         
-        // Для переводов добавляем счет получателя
+        // ✅ Для переводов добавляем счет получателя
         if (type === 'transfer' && toAccount) {
           transactionData.toAccountId = toAccount.id
+          console.log(`✅ Создана транзакция ПЕРЕВОД: ${account.name} → ${toAccount.name}, сумма: ${amount}`)
+        } else {
+          console.log(`✅ Создана транзакция ${type.toUpperCase()}: ${account.name}, сумма: ${amount}`)
         }
         
         results.push(transactionData)

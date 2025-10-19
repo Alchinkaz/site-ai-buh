@@ -68,9 +68,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setAccounts((prev) => [...prev, newAccount])
   }
 
-  const addCategory = (category: Omit<Category, "id">) => {
+  const addCategory = (category: Omit<Category, "id">): Category => {
     const newCategory: Category = { ...category, id: generateId() }
     setCategories((prev) => [...prev, newCategory])
+    return newCategory
   }
 
   const addCounterparty = (counterparty: Omit<Counterparty, "id">): Counterparty => {
