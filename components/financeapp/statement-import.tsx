@@ -366,7 +366,7 @@ export function StatementImport() {
         if (!category) {
           category = addCategory({ 
             name: categoryName, 
-            type: type === 'transfer' ? 'expense' : type, // Для переводов используем тип expense
+            type: type, // Используем тип транзакции (включая transfer)
             color: type === 'income' ? '#10B981' : type === 'transfer' ? '#3B82F6' : '#EF4444' 
           })
         }

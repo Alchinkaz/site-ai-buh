@@ -13,7 +13,7 @@ export interface Account {
 export interface Category {
   id: string
   name: string
-  type: "income" | "expense"
+  type: "income" | "expense" | "transfer"
   color: string
 }
 
