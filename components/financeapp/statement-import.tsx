@@ -253,14 +253,33 @@ export function StatementImport() {
         } else if (sumMatch) {
           const raw = sumMatch[1].trim().replace(',', '.')
           if (/^\d+\.?\d*$/.test(raw)) {
-            const payer = block.match(/ПлательщикНаименование=(.+)/i)
-            if (payer && /alchin/i.test(payer[1])) {
-              type = 'expense'
-              amount = parseFloat(raw)
+            // Для определения типа транзакции используем ИИК, а не имя плательщика
+            const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
+            const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+            
+            // Если наш ИИК в поле плательщика - это расход (мы платим)
+            // Если наш ИИК в поле получателя - это доход (нам платят)
+            const ourAccount = accounts.find(acc => 
+              (payerIIK && acc.accountNumber === payerIIK[1]?.trim()) ||
+              (receiverIIK && acc.accountNumber === receiverIIK[1]?.trim())
+            )
+            
+            if (ourAccount) {
+              if (payerIIK && ourAccount.accountNumber === payerIIK[1]?.trim()) {
+                type = 'expense' // Мы платим
+              } else if (receiverIIK && ourAccount.accountNumber === receiverIIK[1]?.trim()) {
+                type = 'income' // Нам платят
+              }
             } else {
-              type = 'income'
-              amount = parseFloat(raw)
+              // Fallback: если не можем определить по ИИК, используем старую логику
+              const payer = block.match(/ПлательщикНаименование=(.+)/i)
+              if (payer && /alchin/i.test(payer[1])) {
+                type = 'expense'
+              } else {
+                type = 'income'
+              }
             }
+            amount = parseFloat(raw)
           } else {
             return // пропускаем если не число
           }
@@ -286,7 +305,17 @@ export function StatementImport() {
         const documentNumberValue = documentNumber?.[1]?.trim() || ''
 
         // Определяем контрагента: для дохода — плательщик, для расхода — получатель
-        const counterpartyName = type === 'income' ? payerName : receiverName
+        // Но исключаем случаи, когда контрагент - это наш же счет
+        let counterpartyName = type === 'income' ? payerName : receiverName
+        
+        // Проверяем, не является ли контрагент нашим счетом
+        const counterpartyIIK = type === 'income' ? payerIIKValue : receiverIIKValue
+        const isOurAccount = accounts.some(acc => acc.accountNumber === counterpartyIIK)
+        
+        if (isOurAccount) {
+          // Если контрагент - это наш счет, то это внутренний перевод, пропускаем
+          return
+        }
         
         // Определяем ИИК на основе направления платежа
         // Если доход (кто-то отправил нам) - берем ИИК получателя (наш ИИК)
@@ -298,7 +327,8 @@ export function StatementImport() {
           return
         }
 
-        // Исключаем внутренние переводы
+        // Исключаем внутренние переводы (уже проверено выше по ИИК)
+        // Дополнительная проверка по тексту
         if (counterpartyName.toLowerCase().includes('alchin') || purposeText.toLowerCase().includes('своего счета')) {
           return
         }
