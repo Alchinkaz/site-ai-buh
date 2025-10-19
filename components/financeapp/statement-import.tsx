@@ -277,11 +277,26 @@ export function StatementImport() {
             const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
             
             // Проверяем, какие номера счетов принадлежат нашим счетам
-            const isPayerOurAccount = accounts.some(acc => acc.accountNumber === payerIIKValue)
-            const isReceiverOurAccount = accounts.some(acc => acc.accountNumber === receiverIIKValue)
+            const isPayerOurAccount = accounts.some(acc => {
+              if (!acc.accountNumber) return false
+              // Сравниваем с учетом пробелов и регистра
+              const accountNumber = acc.accountNumber.trim()
+              const payerIIK = payerIIKValue.trim()
+              return accountNumber === payerIIK || 
+                     accountNumber.replace(/\s+/g, '') === payerIIK.replace(/\s+/g, '')
+            })
+            const isReceiverOurAccount = accounts.some(acc => {
+              if (!acc.accountNumber) return false
+              // Сравниваем с учетом пробелов и регистра
+              const accountNumber = acc.accountNumber.trim()
+              const receiverIIK = receiverIIKValue.trim()
+              return accountNumber === receiverIIK || 
+                     accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
+            })
             
             console.log(`Плательщик ИИК: ${payerIIKValue}, Получатель ИИК: ${receiverIIKValue}`)
             console.log(`Плательщик наш счет: ${isPayerOurAccount}, Получатель наш счет: ${isReceiverOurAccount}`)
+            console.log('Доступные счета в системе:', accounts.map(acc => ({ name: acc.name, accountNumber: acc.accountNumber })))
             
             if (isPayerOurAccount && isReceiverOurAccount) {
               // Если оба номера счетов - наши счета, это перевод между счетами
@@ -330,6 +345,8 @@ export function StatementImport() {
         const payerIIKValue = payerIIK?.[1]?.trim() || ''
         const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
         const documentNumberValue = documentNumber?.[1]?.trim() || ''
+        
+        console.log(`Имена: Плательщик="${payerName}", Получатель="${receiverName}"`)
 
         // Определяем контрагента и счет в зависимости от типа транзакции
         let counterpartyName = ''
