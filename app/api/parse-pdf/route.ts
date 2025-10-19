@@ -13,7 +13,20 @@ async function parsePDFContentSimple(buffer: Buffer, bankName: string = 'Kaspi')
       type: "income",
       amount: 100000,
       comment: `Пример транзакции из ${bankName} Bank (PDF парсинг недоступен на продакшене)`,
-      counterparty: "Пример контрагент"
+      counterparty: "ТОО Пример контрагент",
+      documentNumber: "12345",
+      debit: "",
+      credit: "100000.00"
+    },
+    {
+      date: new Date().toISOString().split('T')[0],
+      type: "expense",
+      amount: 50000,
+      comment: `Пример расхода из ${bankName} Bank`,
+      counterparty: "ИП Пример поставщик",
+      documentNumber: "12346",
+      debit: "50000.00",
+      credit: ""
     }
   ]
 }
@@ -93,7 +106,11 @@ async function parsePDFContentPython(buffer: Buffer, bankName: string = 'Kaspi')
               type: item.Тип === 'Доход' ? 'income' : 'expense',
               amount: parseFloat(item.Сумма || item.amount || '0'),
               comment: item.Комментарий || item.comment || '',
-              counterparty: item.Контрагент || item.counterparty || ''
+              counterparty: item.Контрагент || item.counterparty || '',
+              // Дополнительные поля
+              documentNumber: item.НомерДокумента || item.documentNumber || '',
+              debit: item.Дебет || item.debit || '',
+              credit: item.Кредит || item.credit || ''
             }))
             
             resolve(transactions)

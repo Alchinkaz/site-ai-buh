@@ -98,12 +98,25 @@ export function PDFImport() {
           })
         }
 
+        // Формируем комментарий с дополнительной информацией
+        let fullComment = tx.comment
+        if (tx.documentNumber) {
+          fullComment = `Док. №${tx.documentNumber} | ${fullComment}`
+        }
+        if (tx.debit && tx.credit) {
+          fullComment = `Дебет: ${tx.debit}, Кредит: ${tx.credit} | ${fullComment}`
+        } else if (tx.debit) {
+          fullComment = `Дебет: ${tx.debit} | ${fullComment}`
+        } else if (tx.credit) {
+          fullComment = `Кредит: ${tx.credit} | ${fullComment}`
+        }
+
         addTransaction({
           accountId: account.id,
           amount: Math.abs(tx.amount),
           type: tx.type,
           date: tx.date,
-          comment: tx.comment,
+          comment: fullComment,
           categoryId: category?.id || '',
           counterpartyId: counterparty?.id || '',
           currency: account.currency,
