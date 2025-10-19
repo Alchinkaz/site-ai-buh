@@ -240,18 +240,6 @@ export function StatementImport() {
   }
 
   const parse1CClientBankExchangeTxt = (content: string) => {
-    // Пытаемся извлечь контрольные суммы из выписки: ВсегоПоступило / ВсегоСписано
-    const num = (s: string | undefined | null): number => {
-      if (!s) return 0
-      return parseFloat(s.replace(/\s+/g, '').replace(',', '.')) || 0
-    }
-    const receivedMatch = content.match(/ВсегоПоступило\s*[:=]\s*([0-9\s.,]+)/i)
-    const spentMatch = content.match(/ВсегоСписано\s*[:=]\s*([0-9\s.,]+)/i)
-    const totals = {
-      received: num(receivedMatch?.[1]),
-      spent: num(spentMatch?.[1]),
-      present: Boolean(receivedMatch || spentMatch),
-    }
     const results: any[] = []
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
     const duplicateCount = { count: 0 } // Счетчик дубликатов
@@ -535,7 +523,7 @@ export function StatementImport() {
     })
     
     console.log(`Обработано ${results.length} транзакций, пропущено ${duplicateCount.count} дубликатов`)
-    return { transactions: results, duplicateCount: duplicateCount.count, totals }
+    return { transactions: results, duplicateCount: duplicateCount.count }
   }
 
   const handleImport = async () => {
@@ -546,7 +534,6 @@ export function StatementImport() {
       let txs: any[] = []
       let duplicateCount = 0
       const ext = file.name.split('.').pop()?.toLowerCase()
-      let declaredTotals: { received: number; spent: number; present: boolean } | undefined
       if (ext === 'txt') {
         const text = await file.text()
         // если это 1CClientBankExchange — парсим напрямую
@@ -554,7 +541,6 @@ export function StatementImport() {
           const result = parse1CClientBankExchangeTxt(text)
           txs = result.transactions
           duplicateCount = result.duplicateCount
-          declaredTotals = result.totals
         }
       } 
       if (txs.length === 0) {
@@ -571,23 +557,6 @@ export function StatementImport() {
         }
         txs = process(rows)
       }
-      // Контрольные суммы: считаем по транзакциям
-      const sumIncome = txs.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0)
-      const sumExpense = txs.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0)
-
-      // Если в выписке были указаны суммы ВсегоПоступило/ВсегоСписано — валидируем
-      if (declaredTotals?.present) {
-        const round2 = (n: number) => Math.round(n * 100) / 100
-        const recOk = Math.abs(round2(sumIncome) - round2(declaredTotals.received)) < 0.01
-        const expOk = Math.abs(round2(sumExpense) - round2(declaredTotals.spent)) < 0.01
-        if (!recOk || !expOk) {
-          const msg = `Несоответствие контрольных сумм выписки.\n` +
-            `ВсегоПоступило: заявлено ${round2(declaredTotals.received)}, по операциям ${round2(sumIncome)}\n` +
-            `ВсегоСписано: заявлено ${round2(declaredTotals.spent)}, по операциям ${round2(sumExpense)}`
-          throw new Error(msg)
-        }
-      }
-
       // Собираем информацию об ИИК, счетах и дубликатах
       const accountIIKs = new Set<string>()
       const detectedAccounts = new Set<string>()
@@ -616,10 +585,6 @@ export function StatementImport() {
       
       // Формируем сообщение об успешном импорте
       let successMessage = `Импортировано ${txs.length} операций`
-      successMessage += `\nВсегоПоступило (расчет): ${sumIncome.toFixed(2)}  |  ВсегоСписано (расчет): ${sumExpense.toFixed(2)}`
-      if (declaredTotals?.present) {
-        successMessage += `\nВсегоПоступило (выписка): ${declaredTotals.received.toFixed(2)}  |  ВсегоСписано (выписка): ${declaredTotals.spent.toFixed(2)}`
-      }
       
       if (detectedAccounts.size > 0) {
         successMessage += `\n\nАвтоматически определены счета: ${Array.from(detectedAccounts).join(', ')}`
