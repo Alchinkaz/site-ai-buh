@@ -3,10 +3,11 @@ export type TransactionType = "income" | "expense" | "transfer"
 export interface Account {
   id: string
   name: string
-  type: "bank" | "cash" | "kaspi" | "other"
+  type: "bank" | "cash" | "kaspi" | "card" | "other"
   balance: number
   currency: string
   accountNumber?: string
+  parentId?: string
   createdAt: string
 }
 

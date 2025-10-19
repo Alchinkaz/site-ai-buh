@@ -16,7 +16,11 @@ function AccountsInner() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
-  const getTransactionCount = (accountId: string) => transactions.filter((t) => t.accountId === accountId).length
+  const getTransactionCount = (accountId: string) =>
+    transactions.filter((t) => t.accountId === accountId || t.toAccountId === accountId).length
+
+  const rootAccounts = accounts.filter((a) => !a.parentId)
+  const childrenOf = (parentId: string) => accounts.filter((a) => a.parentId === parentId)
 
   return (
     <div className="flex flex-col gap-6">
@@ -83,10 +87,23 @@ function AccountsInner() {
           </Dialog>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} transactionCount={getTransactionCount(account.id)} />
-          ))}
+        <div className="space-y-6">
+          {rootAccounts.map((account) => {
+            const children = childrenOf(account.id)
+            const groupBalance = account.balance + children.reduce((s, c) => s + c.balance, 0)
+            return (
+              <div key={account.id} className="space-y-3">
+                <AccountCard account={{ ...account, balance: groupBalance }} transactionCount={getTransactionCount(account.id)} />
+                {children.length > 0 && (
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 pl-1">
+                    {children.map((child) => (
+                      <AccountCard key={child.id} account={child} transactionCount={getTransactionCount(child.id)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

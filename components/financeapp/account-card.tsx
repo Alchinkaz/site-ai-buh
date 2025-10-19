@@ -20,6 +20,8 @@ export function AccountCard({ account, transactionCount = 0 }: AccountCardProps)
         return <Building2 className="h-5 w-5" />
       case "kaspi":
         return <CreditCard className="h-5 w-5" />
+      case "card":
+        return <CreditCard className="h-5 w-5" />
       case "cash":
         return <Banknote className="h-5 w-5" />
       default:
@@ -35,6 +37,8 @@ export function AccountCard({ account, transactionCount = 0 }: AccountCardProps)
         return "Kaspi"
       case "cash":
         return "Наличные"
+      case "card":
+        return "Карта"
       case "other":
         return "Другое"
       default:

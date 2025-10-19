@@ -23,15 +23,16 @@ interface AccountFormProps {
 }
 
 export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: AccountFormProps) {
-  const { addAccount, updateAccount } = useFinance()
+  const { addAccount, updateAccount, accounts } = useFinance()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
     name: initialValues?.name || "",
-    type: (initialValues?.type || "bank") as "bank" | "cash" | "kaspi" | "other",
+    type: (initialValues?.type || "bank") as "bank" | "cash" | "kaspi" | "card" | "other",
     balance: initialValues?.balance != null ? String(initialValues.balance) : "",
     currency: initialValues?.currency || "KZT",
     accountNumber: initialValues?.accountNumber || "",
+    parentId: (initialValues as any)?.parentId || "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,6 +51,7 @@ export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: A
         balance: Number.parseFloat(formData.balance) || 0,
         currency: formData.currency,
         accountNumber: formData.accountNumber.trim() || undefined,
+        parentId: formData.type === "card" && formData.parentId ? formData.parentId : undefined,
       }
 
       if (accountId) {
@@ -61,7 +63,7 @@ export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: A
       }
 
       if (!accountId) {
-        setFormData({ name: "", type: "bank", balance: "", currency: "KZT", accountNumber: "" })
+        setFormData({ name: "", type: "bank", balance: "", currency: "KZT", accountNumber: "", parentId: "" })
       }
       onSuccess?.()
     } catch (error) {
@@ -87,6 +89,7 @@ export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: A
               <SelectItem value="bank">Банковский счёт</SelectItem>
               <SelectItem value="kaspi">Kaspi</SelectItem>
               <SelectItem value="cash">Наличные</SelectItem>
+              <SelectItem value="card">Карта (подсчёт)</SelectItem>
               <SelectItem value="other">Другое</SelectItem>
             </SelectContent>
           </Select>
@@ -104,6 +107,22 @@ export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: A
           </Select>
         </div>
       </div>
+
+      {formData.type === "card" && (
+        <div className="space-y-2">
+          <Label htmlFor="parent">Родительский счёт</Label>
+          <Select value={formData.parentId} onValueChange={(value) => setFormData({ ...formData, parentId: value })} disabled={isSubmitting}>
+            <SelectTrigger id="parent"><SelectValue placeholder="Выберите счёт" /></SelectTrigger>
+            <SelectContent>
+              {accounts.filter((a) => a.type !== "card").map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name} ({a.currency})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="accountNumber">Номер счёта (необязательно)</Label>
