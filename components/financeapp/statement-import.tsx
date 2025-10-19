@@ -259,22 +259,73 @@ export function StatementImport() {
       try {
         console.log(`\n📋 Обрабатываем блок ${blockIndex + 1}:`)
         
-        // Дата (пробуем разные варианты)
+        // 1. РАСЧСЧЕТ - определяем какой счет наш
+        const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
+        const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+        
+        const payerIIKValue = payerIIK?.[1]?.trim() || ''
+        const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+        
+        // Проверяем, какие номера счетов принадлежат нашим счетам
+        const isPayerOurAccount = accounts.some(acc => {
+          if (!acc.accountNumber) return false
+          const accountNumber = acc.accountNumber.trim()
+          const payerIIK = payerIIKValue.trim()
+          return accountNumber === payerIIK || 
+                 accountNumber.replace(/\s+/g, '') === payerIIK.replace(/\s+/g, '')
+        })
+        const isReceiverOurAccount = accounts.some(acc => {
+          if (!acc.accountNumber) return false
+          const accountNumber = acc.accountNumber.trim()
+          const receiverIIK = receiverIIKValue.trim()
+          return accountNumber === receiverIIK || 
+                 accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
+        })
+        
+        console.log(`🔍 Анализ РАСЧСЧЕТ:`)
+        console.log(`  Плательщик ИИК: "${payerIIKValue}" (наш: ${isPayerOurAccount})`)
+        console.log(`  Получатель ИИК: "${receiverIIKValue}" (наш: ${isReceiverOurAccount})`)
+        
+        // 2. НомерДокумента - для проверки дубликатов
+        const documentNumber = block.match(/НомерДокумента=(.+)/i)
+        const documentNumberValue = documentNumber?.[1]?.trim() || ''
+        
+        // 3. ДатаОперации
         let dateMatch = block.match(/ДатаОперации=(.+)/i)
         if (!dateMatch) {
           dateMatch = block.match(/ДатаДокумента=(.+)/i)
         }
         const date = dateMatch?.[1]?.trim() || ''
-
-        // Сумма и тип операции (пробуем разные варианты)
-        const incomeMatch = block.match(/СуммаПриход=(.+)/i)
-        const expenseMatch = block.match(/СуммаРасход=(.+)/i)
-        const incomeAlt = block.match(/СуммаДоход=(.+)/i) // Forte вариант
-        const sumMatch = block.match(/Сумма=(.+)/i)
-
+        
+        // Проверяем дубликаты по номеру документа + дате
+        if (documentNumberValue && date) {
+          const duplicateKey = `${documentNumberValue}_${date}`
+          if (seenTransactions.has(duplicateKey)) {
+            console.log(`⚠️ Пропущен дубликат: ${documentNumberValue} - ${date}`)
+            duplicateCount.count++
+            return
+          }
+          
+          // Проверяем существующие транзакции в базе данных
+          if (isTransactionExists(documentNumberValue)) {
+            console.log(`⚠️ Пропущена существующая транзакция: ${documentNumberValue}`)
+            duplicateCount.count++
+            return
+          }
+          
+          seenTransactions.add(duplicateKey)
+        }
+        
+        // 4. ПолучательИИК и ПлательщикИИК - определяем тип операции
         let type: 'income' | 'expense' | 'transfer' | undefined
         let amount = 0
-
+        
+        // Получаем сумму
+        const incomeMatch = block.match(/СуммаПриход=(.+)/i)
+        const expenseMatch = block.match(/СуммаРасход=(.+)/i)
+        const incomeAlt = block.match(/СуммаДоход=(.+)/i)
+        const sumMatch = block.match(/Сумма=(.+)/i)
+        
         if (incomeMatch || incomeAlt) {
           const amountStr = (incomeMatch || incomeAlt)![1]
           amount = parseFloat(amountStr.replace(',', '.'))
@@ -286,179 +337,75 @@ export function StatementImport() {
         } else if (sumMatch) {
           const raw = sumMatch[1].trim().replace(',', '.')
           if (/^\d+\.?\d*$/.test(raw)) {
-            // Получаем ИИК для определения типа транзакции
-            const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
-            const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+            amount = parseFloat(raw)
             
-            const payerIIKValue = payerIIK?.[1]?.trim() || ''
-            const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
-            
-            // Проверяем, какие номера счетов принадлежат нашим счетам
-            const isPayerOurAccount = accounts.some(acc => {
-              if (!acc.accountNumber) return false
-              // Сравниваем с учетом пробелов и регистра
-              const accountNumber = acc.accountNumber.trim()
-              const payerIIK = payerIIKValue.trim()
-              return accountNumber === payerIIK || 
-                     accountNumber.replace(/\s+/g, '') === payerIIK.replace(/\s+/g, '')
-            })
-            const isReceiverOurAccount = accounts.some(acc => {
-              if (!acc.accountNumber) return false
-              // Сравниваем с учетом пробелов и регистра
-              const accountNumber = acc.accountNumber.trim()
-              const receiverIIK = receiverIIKValue.trim()
-              return accountNumber === receiverIIK || 
-                     accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
-            })
-            
-            console.log(`🔍 Анализ ИИК:`)
-            console.log(`  Плательщик ИИК: "${payerIIKValue}"`)
-            console.log(`  Получатель ИИК: "${receiverIIKValue}"`)
-            console.log(`  Плательщик наш счет: ${isPayerOurAccount}`)
-            console.log(`  Получатель наш счет: ${isReceiverOurAccount}`)
-            console.log(`  Доступные счета в системе:`, accounts.map(acc => ({ name: acc.name, accountNumber: acc.accountNumber })))
-            
-            // Детальная проверка каждого счета
-            console.log(`🔍 Детальная проверка счетов:`)
-            accounts.forEach(acc => {
-              if (acc.accountNumber) {
-                const accountNumber = acc.accountNumber.trim()
-                const payerMatch = accountNumber === payerIIKValue.trim() || accountNumber.replace(/\s+/g, '') === payerIIKValue.replace(/\s+/g, '')
-                const receiverMatch = accountNumber === receiverIIKValue.trim() || accountNumber.replace(/\s+/g, '') === receiverIIKValue.replace(/\s+/g, '')
-                console.log(`  Счет "${acc.name}" (${accountNumber}):`)
-                console.log(`    Совпадает с плательщиком: ${payerMatch}`)
-                console.log(`    Совпадает с получателем: ${receiverMatch}`)
-              } else {
-                console.log(`  Счет "${acc.name}": НЕТ НОМЕРА СЧЕТА`)
-              }
-            })
-            
-            // ✅ ОСНОВНАЯ ЛОГИКА: Если оба ИИК - наши счета, то это ПЕРЕВОД
+            // Определяем тип по ИИК
             if (isPayerOurAccount && isReceiverOurAccount) {
               type = 'transfer'
-              console.log('✅ Определен тип: TRANSFER (перевод между своими счетами)')
-              console.log(`🔍 Детали: Плательщик "${payerIIKValue}" и Получатель "${receiverIIKValue}" - оба наши счета`)
+              console.log('✅ Тип: TRANSFER (перевод между своими счетами)')
             } else if (isPayerOurAccount) {
-              // Дополнительная проверка: если в назначении есть слова о переводах между счетами
-              const purposeText = block.match(/НазначениеПлатежа=(.+)/i)?.[1]?.toLowerCase() || ''
-              if (purposeText.includes('своего счета') || purposeText.includes('перевод собственных средств') || purposeText.includes('перевод между')) {
-                type = 'transfer'
-                console.log('✅ Определен тип: TRANSFER (по назначению платежа - перевод между счетами)')
-              } else {
-                type = 'expense'
-                console.log('✅ Определен тип: EXPENSE (расход с нашего счета)')
-              }
+              type = 'expense'
+              console.log('✅ Тип: EXPENSE (расход с нашего счета)')
             } else if (isReceiverOurAccount) {
-              // Дополнительная проверка: если в назначении есть слова о переводах между счетами
-              const purposeText = block.match(/НазначениеПлатежа=(.+)/i)?.[1]?.toLowerCase() || ''
-              if (purposeText.includes('своего счета') || purposeText.includes('перевод собственных средств') || purposeText.includes('перевод между')) {
-                type = 'transfer'
-                console.log('✅ Определен тип: TRANSFER (по назначению платежа - перевод между счетами)')
-              } else {
-                type = 'income'
-                console.log('✅ Определен тип: INCOME (доход на наш счет)')
-              }
+              type = 'income'
+              console.log('✅ Тип: INCOME (доход на наш счет)')
             } else {
-              // Fallback: используем старую логику по имени
-              const payer = block.match(/ПлательщикНаименование=(.+)/i)
-              if (payer && /alchin/i.test(payer[1])) {
-                type = 'expense'
-                console.log('⚠️ Определен тип: EXPENSE (по имени плательщика - fallback)')
-              } else {
-                type = 'income'
-                console.log('⚠️ Определен тип: INCOME (по умолчанию - fallback)')
-              }
+              console.log('⚠️ Неизвестный тип: ни один ИИК не совпадает с нашими счетами')
+              return
             }
-            
-            console.log(`🎯 ФИНАЛЬНЫЙ РЕЗУЛЬТАТ: тип транзакции = "${type}"`)
-            amount = parseFloat(raw)
           } else {
             return // пропускаем если не число
           }
         }
-
-        if (!type || !date || !amount) return
-
-        // Контрагент и назначение
+        
+        if (!type || !date || !amount) {
+          console.log('⚠️ Пропущен блок: отсутствуют обязательные поля')
+          return
+        }
+        
+        // 5. ПолучательНаименование или ПлательщикНаименование - определяем контрагента
         const payer = block.match(/ПлательщикНаименование=(.+)/i)
         const receiver = block.match(/ПолучательНаименование=(.+)/i)
-        const purpose = block.match(/НазначениеПлатежа=(.+)/i)
         
-        // ИИК данные и номер документа
-        const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
-        const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
-        const documentNumber = block.match(/НомерДокумента=(.+)/i)
-
         const payerName = payer?.[1]?.trim() || ''
         const receiverName = receiver?.[1]?.trim() || ''
-        const purposeText = purpose?.[1]?.trim() || ''
-        const payerIIKValue = payerIIK?.[1]?.trim() || ''
-        const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
-        const documentNumberValue = documentNumber?.[1]?.trim() || ''
         
-        console.log(`Имена: Плательщик="${payerName}", Получатель="${receiverName}"`)
-
-        // Определяем контрагента и счет в зависимости от типа транзакции
         let counterpartyName = ''
         let accountIIK = ''
         let toAccountIIK = ''
         
         if (type === 'transfer') {
-          // ✅ Для переводов: контрагент - это название перевода, счет откуда - плательщик, счет куда - получатель
+          // Для переводов: контрагент - это название перевода
           counterpartyName = `Перевод между счетами`
-          // Для переводов определяем счета по ИИК
-          const payerIsOurAccount = accounts.some(acc => {
-            if (!acc.accountNumber) return false
-            const accountNumber = acc.accountNumber.trim()
-            const payerIIK = payerIIKValue.trim()
-            return accountNumber === payerIIK || 
-                   accountNumber.replace(/\s+/g, '') === payerIIK.replace(/\s+/g, '')
-          })
-          const receiverIsOurAccount = accounts.some(acc => {
-            if (!acc.accountNumber) return false
-            const accountNumber = acc.accountNumber.trim()
-            const receiverIIK = receiverIIKValue.trim()
-            return accountNumber === receiverIIK || 
-                   accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
-          })
-          
-          if (payerIsOurAccount && receiverIsOurAccount) {
-            accountIIK = payerIIKValue // Счет откуда
-            toAccountIIK = receiverIIKValue // Счет куда
-          } else {
-            // Если только один счет наш, используем его как основной
-            accountIIK = payerIsOurAccount ? payerIIKValue : receiverIIKValue
-            toAccountIIK = payerIsOurAccount ? receiverIIKValue : payerIIKValue
-          }
-          console.log(`🔄 ПЕРЕВОД: ${accountIIK} → ${toAccountIIK}, контрагент: ${counterpartyName}`)
+          accountIIK = payerIIKValue // Счет откуда
+          toAccountIIK = receiverIIKValue // Счет куда
+          console.log(`🔄 ПЕРЕВОД: ${accountIIK} → ${toAccountIIK}`)
         } else if (type === 'income') {
           // Для доходов: контрагент - плательщик, счет - получатель (наш счет)
           counterpartyName = payerName
           accountIIK = receiverIIKValue
-          console.log(`💰 ДОХОД: контрагент ${counterpartyName}, счет ${accountIIK}`)
+          console.log(`💰 ДОХОД: контрагент "${counterpartyName}", счет ${accountIIK}`)
         } else if (type === 'expense') {
           // Для расходов: контрагент - получатель, счет - плательщик (наш счет)
           counterpartyName = receiverName
           accountIIK = payerIIKValue
-          console.log(`💸 РАСХОД: контрагент ${counterpartyName}, счет ${accountIIK}`)
+          console.log(`💸 РАСХОД: контрагент "${counterpartyName}", счет ${accountIIK}`)
         }
-
-        // Исключаем записи без контрагента или с пустыми полями
+        
+        // Исключаем записи без контрагента
         if (!counterpartyName || counterpartyName.trim() === '' || counterpartyName === '-') {
+          console.log('⚠️ Пропущен блок: отсутствует контрагент')
           return
         }
-
-        // ✅ Исключаем внутренние переводы (только для доходов/расходов, не для переводов)
-        // Но сначала проверяем, не является ли это переводом между нашими счетами
-        if (type !== 'transfer' && (counterpartyName.toLowerCase().includes('alchin') || purposeText.toLowerCase().includes('своего счета'))) {
-          console.log(`⚠️ Пропущен внутренний перевод: ${counterpartyName} - ${purposeText}`)
-          return
-        }
-
+        
+        // 6. НазначениеПлатежа = Комментарии
+        const purpose = block.match(/НазначениеПлатежа=(.+)/i)
+        const purposeText = purpose?.[1]?.trim() || ''
+        
         // Автоматически определяем счет по ИИК
         const account = findAccountByIIK(accountIIK)
         if (!account) {
-          console.warn(`Не найден счет для ИИК: ${accountIIK}`)
+          console.warn(`⚠️ Не найден счет для ИИК: ${accountIIK}`)
           return
         }
         
@@ -467,29 +414,29 @@ export function StatementImport() {
         if (type === 'transfer') {
           toAccount = findAccountByIIK(toAccountIIK)
           if (!toAccount) {
-            console.warn(`Не найден счет получателя для ИИК: ${toAccountIIK}`)
+            console.warn(`⚠️ Не найден счет получателя для ИИК: ${toAccountIIK}`)
             return
           }
         }
-
+        
         // Определяем категорию
         let categoryName = detectCategoryByText(purposeText)
         
-        // ✅ Для переводов используем специальную категорию
+        // Для переводов используем специальную категорию
         if (type === 'transfer') {
           categoryName = 'Перевод между счетами'
         }
-
+        
         let category: Category | undefined = categories.find((c) => c.name.toLowerCase() === categoryName.toLowerCase())
         if (!category) {
           category = addCategory({ 
             name: categoryName, 
-            type: type, // Используем тип транзакции (включая transfer)
+            type: type,
             color: type === 'income' ? '#10B981' : type === 'transfer' ? '#3B82F6' : '#EF4444' 
           }) as Category
-          console.log(`📁 Создана новая категория: "${categoryName}" (тип: ${type})`)
+          console.log(`📁 Создана категория: "${categoryName}"`)
         }
-
+        
         // Создаем контрагента если нужно
         let counterparty = counterparties.find((cp) => cp.name.toLowerCase() === counterpartyName.toLowerCase())
         if (!counterparty && counterpartyName) {
@@ -497,28 +444,9 @@ export function StatementImport() {
             name: counterpartyName, 
             type: 'supplier'
           })
-          console.log(`👤 Создан новый контрагент: "${counterpartyName}"`)
-        }
-
-        // Создаем уникальный ключ для проверки дубликатов по номеру документа
-        const transactionKey = documentNumberValue || `${date}_${counterpartyName}_${type}`
-        
-        // Проверяем, не встречалась ли уже такая транзакция в файле
-        if (seenTransactions.has(transactionKey)) {
-          console.log(`Пропущен дубликат в файле: ${documentNumberValue || 'без номера'} - ${date} - ${counterpartyName}`)
-          duplicateCount.count++
-          return
+          console.log(`👤 Создан контрагент: "${counterpartyName}"`)
         }
         
-        // Проверяем существующие транзакции в базе данных
-        if (documentNumberValue && isTransactionExists(documentNumberValue)) {
-          console.log(`Пропущена существующая транзакция: ${documentNumberValue}`)
-          duplicateCount.count++
-          return
-        }
-        
-        seenTransactions.add(transactionKey)
-
         const transactionData: any = {
           accountId: account.id,
           amount: Math.abs(amount),
@@ -528,17 +456,16 @@ export function StatementImport() {
           categoryId: category?.id || '',
           counterpartyId: counterparty?.id || '',
           currency: account.currency,
-          accountIIK: accountIIK, // Добавляем ИИК счета
-          documentNumber: documentNumberValue, // Добавляем номер документа
+          accountIIK: accountIIK,
+          documentNumber: documentNumberValue,
         }
         
-        // ✅ Для переводов добавляем счет получателя
+        // Для переводов добавляем счет получателя
         if (type === 'transfer' && toAccount) {
           transactionData.toAccountId = toAccount.id
           console.log(`✅ Создана транзакция ПЕРЕВОД: ${account.name} → ${toAccount.name}, сумма: ${amount}`)
         } else {
-          console.log(`❌ Создана транзакция ${type.toUpperCase()}: ${account.name}, сумма: ${amount}`)
-          console.log(`❌ ОЖИДАЛОСЬ: TRANSFER, ПОЛУЧИЛОСЬ: ${type.toUpperCase()}`)
+          console.log(`✅ Создана транзакция ${type.toUpperCase()}: ${account.name}, сумма: ${amount}`)
         }
         
         results.push(transactionData)
@@ -547,7 +474,7 @@ export function StatementImport() {
       }
     })
     
-    console.log(`Обработано ${results.length} транзакций, пропущено ${duplicateCount.count} дубликатов`)
+    console.log(`✅ Обработано ${results.length} транзакций, пропущено ${duplicateCount.count} дубликатов`)
     return { transactions: results, duplicateCount: duplicateCount.count }
   }
 
