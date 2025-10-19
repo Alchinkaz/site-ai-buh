@@ -318,6 +318,21 @@ export function StatementImport() {
             console.log(`  Получатель наш счет: ${isReceiverOurAccount}`)
             console.log(`  Доступные счета в системе:`, accounts.map(acc => ({ name: acc.name, accountNumber: acc.accountNumber })))
             
+            // Детальная проверка каждого счета
+            console.log(`🔍 Детальная проверка счетов:`)
+            accounts.forEach(acc => {
+              if (acc.accountNumber) {
+                const accountNumber = acc.accountNumber.trim()
+                const payerMatch = accountNumber === payerIIKValue.trim() || accountNumber.replace(/\s+/g, '') === payerIIKValue.replace(/\s+/g, '')
+                const receiverMatch = accountNumber === receiverIIKValue.trim() || accountNumber.replace(/\s+/g, '') === receiverIIKValue.replace(/\s+/g, '')
+                console.log(`  Счет "${acc.name}" (${accountNumber}):`)
+                console.log(`    Совпадает с плательщиком: ${payerMatch}`)
+                console.log(`    Совпадает с получателем: ${receiverMatch}`)
+              } else {
+                console.log(`  Счет "${acc.name}": НЕТ НОМЕРА СЧЕТА`)
+              }
+            })
+            
             // ✅ ОСНОВНАЯ ЛОГИКА: Если оба ИИК - наши счета, то это ПЕРЕВОД
             if (isPayerOurAccount && isReceiverOurAccount) {
               type = 'transfer'
@@ -354,6 +369,8 @@ export function StatementImport() {
                 console.log('⚠️ Определен тип: INCOME (по умолчанию - fallback)')
               }
             }
+            
+            console.log(`🎯 ФИНАЛЬНЫЙ РЕЗУЛЬТАТ: тип транзакции = "${type}"`)
             amount = parseFloat(raw)
           } else {
             return // пропускаем если не число
@@ -520,7 +537,8 @@ export function StatementImport() {
           transactionData.toAccountId = toAccount.id
           console.log(`✅ Создана транзакция ПЕРЕВОД: ${account.name} → ${toAccount.name}, сумма: ${amount}`)
         } else {
-          console.log(`✅ Создана транзакция ${type.toUpperCase()}: ${account.name}, сумма: ${amount}`)
+          console.log(`❌ Создана транзакция ${type.toUpperCase()}: ${account.name}, сумма: ${amount}`)
+          console.log(`❌ ОЖИДАЛОСЬ: TRANSFER, ПОЛУЧИЛОСЬ: ${type.toUpperCase()}`)
         }
         
         results.push(transactionData)
