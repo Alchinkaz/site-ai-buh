@@ -5,6 +5,7 @@ from typing import List, Dict, Optional
 from datetime import datetime
 from supabase_config import get_supabase_client, test_connection
 from decimal import Decimal
+import hashlib
 
 # 🔧 Наша компания
 COMPANY_NAME = "ALCHIN"
@@ -202,7 +203,7 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
         
         company_id = company_result.data[0]["id"]
         
-        # Подготавливаем данные для вставки
+        # Подготавливаем данные для вставки/синхронизации
         db_transactions = []
         for transaction in transactions:
             # Конвертируем дату
@@ -276,6 +277,25 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
                 "counterparty": transaction.get("Контрагент", ""),
                 "category": transaction.get("Категория", ""),
             }
+
+            # Стабильный хеш транзакции для идемпотентной синхронизации
+            hash_source_parts = [
+                str(company_id),
+                str(db_transaction.get("transaction_type", "")).strip().lower(),
+                str(db_transaction.get("operation_date", "")),
+                str(db_transaction.get("document_date", "")),
+                str(db_transaction.get("document_number", "")).strip(),
+                str(db_transaction.get("amount_expense", 0.0)),
+                str(db_transaction.get("amount_income", 0.0)),
+                str(db_transaction.get("payer_account", "")).replace(" ", "").upper(),
+                str(db_transaction.get("receiver_account", "")).replace(" ", "").upper(),
+                str(db_transaction.get("from_account", "")).replace(" ", "").upper(),
+                str(db_transaction.get("to_account", "")).replace(" ", "").upper(),
+                str(db_transaction.get("counterparty", "")).strip().lower(),
+            ]
+            hash_source = "|".join(hash_source_parts)
+            transaction_hash = hashlib.sha256(hash_source.encode("utf-8")).hexdigest()
+            db_transaction["transaction_hash"] = transaction_hash
             
             db_transactions.append(db_transaction)
         
@@ -283,8 +303,8 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
             print("❌ Нет валидных транзакций для сохранения")
             return False
         
-        # Вставляем транзакции в базу данных
-        result = supabase.table("transactions").insert(db_transactions).execute()
+        # Идемпотентная синхронизация по transaction_hash
+        result = supabase.table("transactions").upsert(db_transactions, on_conflict="transaction_hash").execute()
         
         if result.data:
             print(f"✅ Успешно сохранено {len(result.data)} транзакций в базу данных")
