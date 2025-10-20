@@ -234,3 +234,25 @@ COMMENT ON COLUMN transactions.transaction_type IS 'Тип транзакции:
 COMMENT ON COLUMN transactions.amount_total IS 'Общая сумма (вычисляемое поле)';
 COMMENT ON COLUMN transactions.counterparty IS 'Контрагент по сделке';
 COMMENT ON COLUMN transactions.category IS 'Категория транзакции (строка)';
+
+-- 13. Идемпотентная настройка синхронизации: transaction_hash и уникальный индекс
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'transactions' AND column_name = 'transaction_hash'
+    ) THEN
+        ALTER TABLE transactions ADD COLUMN transaction_hash TEXT;
+    END IF;
+END $$;
+
+DROP INDEX IF EXISTS ux_transactions_company_hash;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_transactions_company_hash
+    ON transactions (company_id, transaction_hash);
+
+-- 14. Регистрация псевдо-счета кассы (CASH)
+INSERT INTO accounts (company_id, account_number, bank_name, account_type, is_our_account)
+SELECT c.id, 'CASH', 'Cash Desk', 'cash', TRUE
+FROM companies c
+WHERE c.name = 'ALCHIN'
+ON CONFLICT (company_id, account_number) DO NOTHING;

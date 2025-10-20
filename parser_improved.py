@@ -20,6 +20,16 @@ OUR_ACCOUNTS = [
     "KZ88722S000040014444",  # Kaspi Pay (дубликат для надежности)
 ]
 
+# 🔧 Псевдо-счет для наличной кассы
+CASH_ACCOUNT = "CASH"
+
+# Ключевые слова для определения операций наличной кассы
+CASH_KEYWORDS = [
+    "касса",      # рус
+    "налич",      # наличные/наличный/наличка
+    "cash",       # en
+]
+
 # 🔧 Ключи, которые парсим - расширенный список
 FIELDS = [
     "ПолучательНаименование",
@@ -148,6 +158,8 @@ def determine_transaction_type(record: Dict[str, str]) -> Dict[str, str]:
     """Определяет тип транзакции с улучшенной логикой"""
     payer_iik = record.get("ПлательщикИИК", "").strip()
     receiver_iik = record.get("ПолучательИИК", "").strip()
+    doc_type = (record.get("ВидДокумента", "") or "").lower()
+    payment_purpose = (record.get("НазначениеПлатежа", "") or "").lower()
     
     # Нормализуем ИИК (убираем пробелы, приводим к верхнему регистру)
     payer_iik = payer_iik.replace(" ", "").upper()
@@ -168,6 +180,7 @@ def determine_transaction_type(record: Dict[str, str]) -> Dict[str, str]:
         "Категория": "",
     }
     
+    # 1) Переводы между своими банковскими счетами
     if payer_is_ours and receiver_is_ours:
         # Перевод между своими счетами
         result["ТипТранзакции"] = "transfer"
@@ -175,18 +188,42 @@ def determine_transaction_type(record: Dict[str, str]) -> Dict[str, str]:
         result["СчетКуда"] = receiver_iik
         result["Контрагент"] = "Перевод между своими счетами"
         result["Категория"] = "Перевод"
+    # 2) Банковский расход
     elif payer_is_ours:
         # Расход
         result["ТипТранзакции"] = "expense"
         result["Счет"] = payer_iik
         result["Контрагент"] = record.get("ПолучательНаименование", "")
         result["Категория"] = "Расход"
+    # 3) Банковский доход
     elif receiver_is_ours:
         # Доход
         result["ТипТранзакции"] = "income"
         result["Счет"] = receiver_iik
         result["Контрагент"] = record.get("ПлательщикНаименование", "")
         result["Категория"] = "Доход"
+    else:
+        # 4) НАЛИЧНАЯ КАССА: если не нашли наши банковские ИИК, но по тексту видно, что операция кассовая
+        is_cash_related = any(kw in doc_type for kw in CASH_KEYWORDS) or any(kw in payment_purpose for kw in CASH_KEYWORDS)
+
+        if is_cash_related:
+            # Определяем направление по суммам
+            expense_exists = bool(record.get("СуммаРасход"))
+            income_exists = bool(record.get("СуммаПриход"))
+
+            if expense_exists and not income_exists:
+                result["ТипТранзакции"] = "expense"
+                result["Счет"] = CASH_ACCOUNT
+                result["Контрагент"] = record.get("ПолучательНаименование", "") or "Наличные расход"
+                result["Категория"] = "Расход"
+            elif income_exists and not expense_exists:
+                result["ТипТранзакции"] = "income"
+                result["Счет"] = CASH_ACCOUNT
+                result["Контрагент"] = record.get("ПлательщикНаименование", "") or "Наличные приход"
+                result["Категория"] = "Доход"
+            else:
+                # Если обе суммы или ни одной — оставляем неопределенной, пусть отфильтруется валидатором
+                pass
     
     return result
 
@@ -264,8 +301,9 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
                 "document_type": transaction.get("ВидДокумента", ""),
                 "amount_expense": float(amount_expense),
                 "amount_income": float(amount_income),
-                "payer_account": transaction.get("ПлательщикИИК", ""),
-                "receiver_account": transaction.get("ПолучательИИК", ""),
+                # Если операция кассовая, фиксируем счет как CASH
+                "payer_account": (CASH_ACCOUNT if (transaction.get("ТипТранзакции") == "expense" and transaction.get("Счет") == CASH_ACCOUNT) else transaction.get("ПлательщикИИК", "")),
+                "receiver_account": (CASH_ACCOUNT if (transaction.get("ТипТранзакции") == "income" and transaction.get("Счет") == CASH_ACCOUNT) else transaction.get("ПолучательИИК", "")),
                 "from_account": transaction.get("СчетОткуда", ""),
                 "to_account": transaction.get("СчетКуда", ""),
                 "payer_name": transaction.get("ПлательщикНаименование", ""),
@@ -303,15 +341,35 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
             print("❌ Нет валидных транзакций для сохранения")
             return False
         
-        # Идемпотентная синхронизация по transaction_hash
-        result = supabase.table("transactions").upsert(db_transactions, on_conflict="transaction_hash").execute()
+        # Идемпотентная синхронизация по (company_id, transaction_hash)
+        # Важно: должен существовать unique index на (company_id, transaction_hash)
+        result = (
+            supabase
+            .table("transactions")
+            .upsert(db_transactions, on_conflict="company_id,transaction_hash")
+            .select("*")
+            .execute()
+        )
         
-        if result.data:
-            print(f"✅ Успешно сохранено {len(result.data)} транзакций в базу данных")
+        if getattr(result, "data", None) is not None:
+            saved = len(result.data)
+            print(f"✅ Успешно синхронизировано {saved} транзакций с базой данных")
             return True
         else:
-            print("❌ Ошибка при сохранении транзакций")
+            print(f"❌ Ошибка при сохранении транзакций: {getattr(result, 'error', 'unknown error')}")
             return False
+
+    except Exception as e:
+        print(f"❌ Ошибка при сохранении в базу данных: {e}")
+        return False
+
+def sync_transactions(file_paths: List[str]) -> bool:
+    """Высокоуровневая синхронизация: парсит файлы и делает upsert в БД"""
+    records = parse_1c_files_improved(file_paths)
+    if not records:
+        print("ℹ️ Нет валидных операций для синхронизации")
+        return False
+    return save_transactions_to_database(records)
             
     except Exception as e:
         print(f"❌ Ошибка при сохранении в базу данных: {e}")
