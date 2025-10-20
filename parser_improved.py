@@ -370,6 +370,151 @@ def sync_transactions(file_paths: List[str]) -> bool:
         print("ℹ️ Нет валидных операций для синхронизации")
         return False
     return save_transactions_to_database(records)
+
+def sync_cash_transactions(file_paths: List[str]) -> bool:
+    """Специальная синхронизация кассовых операций"""
+    try:
+        supabase = get_supabase_client()
+        
+        # Получаем ID нашей компании
+        company_result = supabase.table("companies").select("id").eq("name", COMPANY_NAME).execute()
+        if not company_result.data:
+            print(f"❌ Компания {COMPANY_NAME} не найдена в базе данных")
+            return False
+        
+        company_id = company_result.data[0]["id"]
+        
+        # Парсим файлы
+        records = parse_1c_files_improved(file_paths)
+        if not records:
+            print("ℹ️ Нет файлов для обработки")
+            return False
+        
+        # Фильтруем только кассовые операции
+        cash_records = []
+        for record in records:
+            doc_type = (record.get("ВидДокумента", "") or "").lower()
+            payment_purpose = (record.get("НазначениеПлатежа", "") or "").lower()
+            counterparty = (record.get("Контрагент", "") or "").lower()
+            
+            # Проверяем, является ли операция кассовой
+            is_cash = any(kw in doc_type for kw in CASH_KEYWORDS) or \
+                     any(kw in payment_purpose for kw in CASH_KEYWORDS) or \
+                     any(kw in counterparty for kw in CASH_KEYWORDS)
+            
+            if is_cash:
+                cash_records.append(record)
+        
+        if not cash_records:
+            print("ℹ️ Кассовые операции не найдены")
+            return False
+        
+        print(f"💰 Найдено {len(cash_records)} кассовых операций")
+        
+        # Подготавливаем данные для вставки
+        db_transactions = []
+        for transaction in cash_records:
+            # Конвертируем дату
+            operation_date = None
+            if transaction.get("ДатаОперации"):
+                try:
+                    operation_date = datetime.strptime(transaction["ДатаОперации"], "%d.%m.%Y").date()
+                except:
+                    try:
+                        operation_date = datetime.strptime(transaction["ДатаОперации"], "%Y-%m-%d").date()
+                    except:
+                        print(f"⚠️ Не удалось распарсить дату: {transaction['ДатаОперации']}")
+                        continue
+            
+            # Конвертируем суммы
+            amount_expense = Decimal(0)
+            amount_income = Decimal(0)
+            
+            if transaction.get("СуммаРасход"):
+                try:
+                    amount_expense = Decimal(str(transaction["СуммаРасход"]).replace(",", "."))
+                except:
+                    pass
+            
+            if transaction.get("СуммаПриход"):
+                try:
+                    amount_income = Decimal(str(transaction["СуммаПриход"]).replace(",", "."))
+                except:
+                    pass
+            
+            # Определяем тип кассовой операции
+            if amount_expense > 0 and amount_income == 0:
+                transaction_type = "expense"
+                counterparty = transaction.get("ПолучательНаименование", "") or "Кассовый расход"
+            elif amount_income > 0 and amount_expense == 0:
+                transaction_type = "income"
+                counterparty = transaction.get("ПлательщикНаименование", "") or "Кассовый приход"
+            else:
+                continue  # Пропускаем неопределенные операции
+            
+            db_transaction = {
+                "company_id": company_id,
+                "transaction_type": transaction_type,
+                "operation_date": operation_date.isoformat() if operation_date else None,
+                "document_date": None,
+                "document_number": transaction.get("НомерДокумента", ""),
+                "document_type": transaction.get("ВидДокумента", ""),
+                "amount_expense": float(amount_expense),
+                "amount_income": float(amount_income),
+                "payer_account": CASH_ACCOUNT if transaction_type == "expense" else "",
+                "receiver_account": CASH_ACCOUNT if transaction_type == "income" else "",
+                "from_account": "",
+                "to_account": "",
+                "payer_name": transaction.get("ПлательщикНаименование", ""),
+                "receiver_name": transaction.get("ПолучательНаименование", ""),
+                "payer_bin_iin": "",
+                "receiver_bin_iin": "",
+                "payment_purpose": transaction.get("НазначениеПлатежа", ""),
+                "payment_code": transaction.get("КодНазначенияПлатежа", ""),
+                "counterparty": counterparty,
+                "category": "Касса",
+            }
+            
+            # Стабильный хеш для кассовых операций
+            hash_source_parts = [
+                str(company_id),
+                "cash",
+                str(db_transaction.get("operation_date", "")),
+                str(db_transaction.get("document_number", "")).strip(),
+                str(db_transaction.get("amount_expense", 0.0)),
+                str(db_transaction.get("amount_income", 0.0)),
+                str(db_transaction.get("counterparty", "")).strip().lower(),
+            ]
+            hash_source = "|".join(hash_source_parts)
+            transaction_hash = hashlib.sha256(hash_source.encode("utf-8")).hexdigest()
+            db_transaction["transaction_hash"] = transaction_hash
+            
+            db_transactions.append(db_transaction)
+        
+        if not db_transactions:
+            print("❌ Нет валидных кассовых транзакций для сохранения")
+            return False
+        
+        # Идемпотентная синхронизация кассовых операций
+        result = (
+            supabase
+            .table("transactions")
+            .upsert(db_transactions, on_conflict="company_id,transaction_hash")
+            .select("*")
+            .execute()
+        )
+        
+        if getattr(result, "data", None) is not None:
+            saved = len(result.data)
+            print(f"✅ Успешно синхронизировано {saved} кассовых операций с базой данных")
+            return True
+        else:
+            print(f"❌ Ошибка при сохранении кассовых операций: {getattr(result, 'error', 'unknown error')}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Ошибка при синхронизации кассовых операций: {e}")
+        return False
             
     except Exception as e:
         print(f"❌ Ошибка при сохранении в базу данных: {e}")
@@ -573,10 +718,16 @@ if __name__ == "__main__":
     print(f"✅ Найдено {len(records)} операций")
 
     if records:
-        # Сохраняем в базу данных
-        print("💾 Сохранение транзакций в базу данных...")
-        if save_transactions_to_database(records):
-            print("✅ Транзакции успешно сохранены!")
+        # Синхронизируем кассовые операции
+        print("💰 Синхронизация кассовых операций...")
+        cash_success = sync_cash_transactions(files)
+        
+        # Синхронизируем все остальные транзакции
+        print("💾 Синхронизация всех транзакций...")
+        all_success = save_transactions_to_database(records)
+        
+        if cash_success or all_success:
+            print("✅ Синхронизация завершена!")
             
             # Получаем статистику
             print("\n📊 Статистика транзакций:")
@@ -595,6 +746,6 @@ if __name__ == "__main__":
             for i, t in enumerate(recent, 1):
                 print(f"{i}. {t['operation_date']} - {t['transaction_type']} - {t['amount_total']} - {t['counterparty']}")
         else:
-            print("❌ Ошибка при сохранении транзакций")
+            print("❌ Ошибка при синхронизации транзакций")
     else:
         print("❌ Не найдено валидных операций для сохранения")
