@@ -411,14 +411,34 @@ export function StatementImport() {
         console.log(`\n📋 Обрабатываем блок ${blockIndex + 1}:`)
         
         // 1. РАСЧСЧЕТ - определяем какой счет наш
-        const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
-        const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+        // Для Форте банка используем РасчСчет, если он есть
+        const raschSchetMatch = block.match(/РасчСчет=(.+)/i)
+        const raschSchetValue = raschSchetMatch?.[1]?.trim() || ''
         
-        const payerIIKValue = payerIIK?.[1]?.trim() || ''
-        const receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+        let payerIIKValue = ''
+        let receiverIIKValue = ''
+        
+        if (raschSchetValue) {
+          // Для Форте банка: РасчСчет - это наш счет
+          payerIIKValue = raschSchetValue
+          const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+          receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+          // Если получатель не указан, используем РасчСчет и для получателя
+          if (!receiverIIKValue) {
+            receiverIIKValue = raschSchetValue
+          }
+          console.log(`🏦 Форте банк: РасчСчет="${raschSchetValue}"`)
+        } else {
+          // Стандартная логика для других банков
+          const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
+          const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+          payerIIKValue = payerIIK?.[1]?.trim() || ''
+          receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+        }
         
         // Проверяем, какие номера счетов принадлежат нашим счетам
-        const isPayerOurAccount = accounts.some(acc => {
+        // Если есть РасчСчет, то это наш счет (для Форте банка)
+        const isPayerOurAccount = raschSchetValue ? true : accounts.some(acc => {
           if (!acc.accountNumber) return false
           const accountNumber = acc.accountNumber.trim()
           const payerIIK = payerIIKValue.trim()
@@ -433,8 +453,12 @@ export function StatementImport() {
                  accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
         })
         
-        console.log(`🔍 Анализ РАСЧСЧЕТ:`)
-        console.log(`  Плательщик ИИК: "${payerIIKValue}" (наш: ${isPayerOurAccount})`)
+        console.log(`🔍 Анализ счетов:`)
+        if (raschSchetValue) {
+          console.log(`  РасчСчет: "${raschSchetValue}" (наш: ${isPayerOurAccount})`)
+        } else {
+          console.log(`  Плательщик ИИК: "${payerIIKValue}" (наш: ${isPayerOurAccount})`)
+        }
         console.log(`  Получатель ИИК: "${receiverIIKValue}" (наш: ${isReceiverOurAccount})`)
         
         // 2. НомерДокумента - для проверки дубликатов
@@ -528,18 +552,20 @@ export function StatementImport() {
         if (type === 'transfer') {
           // Для переводов: контрагент - это название перевода
           counterpartyName = `Перевод между счетами`
-          accountIIK = payerIIKValue // Счет откуда
+          accountIIK = raschSchetValue || payerIIKValue // Счет откуда (для Форте используем РасчСчет)
           toAccountIIK = receiverIIKValue // Счет куда
           console.log(`🔄 ПЕРЕВОД: ${accountIIK} → ${toAccountIIK}`)
         } else if (type === 'income') {
           // Для доходов: контрагент - плательщик, счет - получатель (наш счет)
           counterpartyName = payerName
-          accountIIK = receiverIIKValue
+          // Для Форте банка используем РасчСчет, если он есть
+          accountIIK = raschSchetValue || receiverIIKValue
           console.log(`💰 ДОХОД: контрагент "${counterpartyName}", счет ${accountIIK}`)
         } else if (type === 'expense') {
           // Для расходов: контрагент - получатель, счет - плательщик (наш счет)
           counterpartyName = receiverName
-          accountIIK = payerIIKValue
+          // Для Форте банка используем РасчСчет, если он есть
+          accountIIK = raschSchetValue || payerIIKValue
           console.log(`💸 РАСХОД: контрагент "${counterpartyName}", счет ${accountIIK}`)
         }
         

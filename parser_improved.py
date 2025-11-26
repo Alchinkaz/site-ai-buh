@@ -38,6 +38,7 @@ FIELDS = [
     "ПолучательБИН_ИИН",
     "ПлательщикИИК",
     "ПолучательИИК",
+    "РасчСчет",  # Расчетный счет (используется в Форте банке)
     "НомерДокумента",
     "ДатаОперации",
     "ДатаДокумента",  # Добавляем дату документа
@@ -156,8 +157,22 @@ def parse_date(date_str: str) -> Optional[str]:
 
 def determine_transaction_type(record: Dict[str, str]) -> Dict[str, str]:
     """Определяет тип транзакции с улучшенной логикой"""
-    payer_iik = record.get("ПлательщикИИК", "").strip()
-    receiver_iik = record.get("ПолучательИИК", "").strip()
+    # Для Форте банка используем РасчСчет, если он есть
+    rasch_schet = record.get("РасчСчет", "").strip()
+    
+    # Если есть РасчСчет, используем его как основной счет
+    if rasch_schet:
+        # Для Форте банка: РасчСчет - это наш счет
+        payer_iik = rasch_schet.replace(" ", "").upper()
+        receiver_iik = record.get("ПолучательИИК", "").strip().replace(" ", "").upper()
+        # Если получатель не указан, используем РасчСчет и для получателя
+        if not receiver_iik:
+            receiver_iik = payer_iik
+    else:
+        # Стандартная логика для других банков
+        payer_iik = record.get("ПлательщикИИК", "").strip()
+        receiver_iik = record.get("ПолучательИИК", "").strip()
+    
     doc_type = (record.get("ВидДокумента", "") or "").lower()
     payment_purpose = (record.get("НазначениеПлатежа", "") or "").lower()
     
@@ -168,8 +183,13 @@ def determine_transaction_type(record: Dict[str, str]) -> Dict[str, str]:
     # Нормализуем наши счета
     our_accounts_normalized = [acc.replace(" ", "").upper() for acc in OUR_ACCOUNTS]
     
-    payer_is_ours = payer_iik in our_accounts_normalized
-    receiver_is_ours = receiver_iik in our_accounts_normalized
+    # Если есть РасчСчет, то это наш счет (для Форте банка)
+    if rasch_schet:
+        payer_is_ours = True  # РасчСчет всегда наш счет
+        receiver_is_ours = receiver_iik in our_accounts_normalized if receiver_iik else False
+    else:
+        payer_is_ours = payer_iik in our_accounts_normalized
+        receiver_is_ours = receiver_iik in our_accounts_normalized
     
     result = {
         "ТипТранзакции": "",
@@ -344,13 +364,19 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
         # Собираем все уникальные ИИК из транзакций для автоматического создания счетов
         unique_iiks = set()
         for transaction in transactions:
+            # Для Форте банка используем РасчСчет
+            rasch_schet = transaction.get("РасчСчет", "").strip()
             payer_iik = transaction.get("ПлательщикИИК", "").strip()
             receiver_iik = transaction.get("ПолучательИИК", "").strip()
             from_account = transaction.get("СчетОткуда", "").strip()
             to_account = transaction.get("СчетКуда", "").strip()
             account = transaction.get("Счет", "").strip()
             
-            for iik in [payer_iik, receiver_iik, from_account, to_account, account]:
+            accounts_list = [payer_iik, receiver_iik, from_account, to_account, account]
+            if rasch_schet:
+                accounts_list.append(rasch_schet)
+            
+            for iik in accounts_list:
                 if iik and iik.upper() != CASH_ACCOUNT:
                     unique_iiks.add(iik.replace(" ", "").upper())
         
@@ -799,14 +825,21 @@ def parse_1c_files_improved(file_paths: List[str], auto_create_accounts: bool = 
             
             # Автоматически создаем счета, если они не существуют
             if auto_create_accounts and supabase and company_id:
+                # Для Форте банка используем РасчСчет
+                rasch_schet = record.get("РасчСчет", "").strip()
                 payer_iik = record.get("ПлательщикИИК", "").strip()
                 receiver_iik = record.get("ПолучательИИК", "").strip()
                 from_account = transaction_info.get("СчетОткуда", "").strip()
                 to_account = transaction_info.get("СчетКуда", "").strip()
                 account = transaction_info.get("Счет", "").strip()
                 
+                # Если есть РасчСчет, добавляем его в список для создания
+                accounts_to_create = [payer_iik, receiver_iik, from_account, to_account, account]
+                if rasch_schet:
+                    accounts_to_create.append(rasch_schet)
+                
                 # Создаем все найденные счета (используем кэш для избежания дубликатов)
-                for iik in [payer_iik, receiver_iik, from_account, to_account, account]:
+                for iik in accounts_to_create:
                     if iik:
                         ensure_account_exists(iik, supabase, company_id, seen_iiks)
             
