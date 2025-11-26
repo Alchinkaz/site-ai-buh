@@ -5,6 +5,7 @@ import { useState } from "react"
 import { FinanceProvider, useFinance } from "@/lib/financeapp/finance-context"
 import { formatCurrency, formatDate, maskAccountNumber } from "@/lib/financeapp/finance-utils"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -14,13 +15,16 @@ import { AccountForm } from "@/components/financeapp/account-form"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useParams, useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 function AccountDetailInner() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
-  const { accounts, transactions, categories, counterparties, deleteAccount } = useFinance()
+  const { accounts, transactions, categories, counterparties, deleteAccount, updateAccount } = useFinance()
   const [editOpen, setEditOpen] = useState(false)
+  const [isEditingBalance, setIsEditingBalance] = useState(false)
+  const [balanceValue, setBalanceValue] = useState("")
 
   const account = accounts.find((a) => a.id === id)
   const accountTransactions = transactions
@@ -126,10 +130,59 @@ function AccountDetailInner() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Текущий баланс</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+              {!isEditingBalance && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setBalanceValue(account.balance.toString())
+                    setIsEditingBalance(true)
+                  }}
+                  className="h-6 px-2"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(account.balance, account.currency)}</div>
+            {isEditingBalance ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={balanceValue}
+                  onChange={(e) => setBalanceValue(e.target.value)}
+                  className="text-2xl font-bold w-auto"
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const newBalance = parseFloat(balanceValue) || 0
+                    updateAccount(id, { balance: newBalance })
+                    setIsEditingBalance(false)
+                    toast.success("Баланс обновлен")
+                  }}
+                >
+                  Сохранить
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsEditingBalance(false)
+                    setBalanceValue("")
+                  }}
+                >
+                  Отмена
+                </Button>
+              </div>
+            ) : (
+              <div className="text-2xl font-bold">{formatCurrency(account.balance, account.currency)}</div>
+            )}
           </CardContent>
         </Card>
         <Card>

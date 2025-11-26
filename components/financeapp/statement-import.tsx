@@ -21,6 +21,8 @@ export function StatementImport() {
   const [file, setFile] = useState<File | null>(null)
   // Ref для отслеживания созданных счетов в рамках одной сессии парсинга
   const createdAccountsRef = useRef<Set<string>>(new Set())
+  // Ref для хранения начальных балансов из выписки
+  const accountInitialBalancesRef = useRef<Map<string, number>>(new Map())
   const [selectedAccountId, setSelectedAccountId] = useState("")
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
@@ -320,13 +322,20 @@ export function StatementImport() {
       
       const { bankName, accountType } = detectBankByIIK(iikTrimmed)
       
+      // Получаем начальный баланс из выписки, если он есть
+      const initialBalance = accountInitialBalancesRef.current.get(iikNormalized) || 0
+      
       // Создаем новый счет
       const newAccount = {
         name: `${bankName} (${iikTrimmed.slice(-4)})`, // Последние 4 цифры для краткости
         type: accountType,
-        balance: 0,
+        balance: initialBalance, // Используем баланс из выписки
         currency: "KZT",
         accountNumber: iikTrimmed,
+      }
+      
+      if (initialBalance !== 0) {
+        console.log(`💰 Создаем счет с начальным балансом из выписки: ${initialBalance}`)
       }
       
       try {
@@ -405,9 +414,9 @@ export function StatementImport() {
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
     const duplicateCount = { count: 0 } // Счетчик дубликатов
     const processedIIKs = new Set<string>() // Кэш обработанных ИИК для избежания дубликатов счетов
-    
     // Очищаем ref при начале новой сессии парсинга
     createdAccountsRef.current.clear()
+    accountInitialBalancesRef.current.clear()
     
     console.log('🚀 Начинаем парсинг 1CClientBankExchange файла')
     console.log('📊 Доступные счета в системе:', accounts.map(acc => ({ 
@@ -415,6 +424,28 @@ export function StatementImport() {
       accountNumber: acc.accountNumber,
       hasAccountNumber: !!acc.accountNumber 
     })))
+    
+    // Ищем начальный баланс в заголовке файла (до секций документов)
+    // Пробуем разные варианты названия поля
+    const headerMatch = content.match(/ОстатокНаНачало\s*=\s*([\d,.\s-]+)/i) || 
+                        content.match(/НачальныйОстаток\s*=\s*([\d,.\s-]+)/i) ||
+                        content.match(/ОстатокНачало\s*=\s*([\d,.\s-]+)/i) ||
+                        content.match(/ОстатокНаНачалоПериода\s*=\s*([\d,.\s-]+)/i) ||
+                        content.match(/НачальныйБаланс\s*=\s*([\d,.\s-]+)/i)
+    if (headerMatch) {
+      const balanceStr = headerMatch[1].trim().replace(/\s+/g, '').replace(',', '.')
+      const initialBalance = parseFloat(balanceStr)
+      if (!isNaN(initialBalance)) {
+        console.log(`💰 Найден начальный баланс в заголовке: ${initialBalance}`)
+        // Найдем счет из заголовка
+        const headerRaschSchet = content.match(/(?:РасчСчет|РасчетныйСчет|РасчСч|РасчетныйСч)\s*=\s*(.+)/i)
+        if (headerRaschSchet) {
+          const accountIIK = headerRaschSchet[1].trim().replace(/\s+/g, '').toUpperCase()
+          accountInitialBalancesRef.current.set(accountIIK, initialBalance)
+          console.log(`💰 Начальный баланс для счета ${accountIIK}: ${initialBalance}`)
+        }
+      }
+    }
     
     // Разбиваем по операциям
     const blocks = content.split(/СекцияДокумент=/i).slice(1)
