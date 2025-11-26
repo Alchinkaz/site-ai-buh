@@ -746,29 +746,51 @@ export function StatementImport() {
       setStatus('success')
       
       // Формируем сообщение об успешном импорте
-      let successMessage = `Импортировано ${txs.length} операций`
-      
-      if (detectedAccounts.size > 0) {
-        successMessage += `\n\nАвтоматически определены счета: ${Array.from(detectedAccounts).join(', ')}`
+      // Не показываем "Импортировано 0 операций" если нет счетов и транзакций не было импортировано
+      if (txs.length === 0 && skippedTransactions.size > 0) {
+        // Если нет импортированных транзакций, но есть пропущенные - показываем только предупреждение
+        let warningMessage = `⚠️ Не удалось импортировать операции`
+        
+        if (skippedTransactions.size > 0) {
+          warningMessage += `\n\nПропущено операций (счет не найден): ${skippedTransactions.size}`
+          warningMessage += `\n\nДля продолжения импорта необходимо добавить счета в систему.`
+        }
+        
+        if (duplicateTransactions.size > 0) {
+          warningMessage += `\n\n⚠️ Пропущено дубликатов: ${duplicateTransactions.size}`
+        }
+        
+        if (duplicateCount > 0) {
+          warningMessage += `\n\n🔄 Пропущено дубликатов: ${duplicateCount}`
+        }
+        
+        setMessage(warningMessage)
+      } else {
+        // Обычное сообщение об успешном импорте
+        let successMessage = `Импортировано ${txs.length} операций`
+        
+        if (detectedAccounts.size > 0) {
+          successMessage += `\n\nАвтоматически определены счета: ${Array.from(detectedAccounts).join(', ')}`
+        }
+        
+        if (accountIIKs.size > 0) {
+          successMessage += `\n\nИИК выписки: ${Array.from(accountIIKs).join(', ')}`
+        }
+        
+        if (skippedTransactions.size > 0) {
+          successMessage += `\n\n⚠️ Пропущено операций (счет не найден): ${skippedTransactions.size}`
+        }
+        
+        if (duplicateTransactions.size > 0) {
+          successMessage += `\n\n⚠️ Пропущено дубликатов: ${duplicateTransactions.size}`
+        }
+        
+        if (duplicateCount > 0) {
+          successMessage += `\n\n🔄 Пропущено дубликатов: ${duplicateCount}`
+        }
+        
+        setMessage(successMessage)
       }
-      
-      if (accountIIKs.size > 0) {
-        successMessage += `\n\nИИК выписки: ${Array.from(accountIIKs).join(', ')}`
-      }
-      
-          if (skippedTransactions.size > 0) {
-            successMessage += `\n\n⚠️ Пропущено операций (счет не найден): ${skippedTransactions.size}`
-          }
-          
-          if (duplicateTransactions.size > 0) {
-            successMessage += `\n\n⚠️ Пропущено дубликатов: ${duplicateTransactions.size}`
-          }
-      
-      if (duplicateCount > 0) {
-        successMessage += `\n\n🔄 Пропущено дубликатов: ${duplicateCount}`
-      }
-      
-      setMessage(successMessage)
     } catch (e: any) {
       setStatus('error')
       setMessage(e?.message || 'Ошибка импорта')

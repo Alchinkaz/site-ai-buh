@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Wallet, PlusCircle, Trash2, Building2, CreditCard, Banknote } from "lucide-react"
+import { Wallet, PlusCircle, Trash2, Building2, CreditCard, Banknote, ArrowLeft } from "lucide-react"
 import { FinanceProvider, useFinance } from "@/lib/financeapp/finance-context"
 import { AccountForm } from "@/components/financeapp/account-form"
 import { formatCurrency, maskAccountNumber } from "@/lib/financeapp/finance-utils"
@@ -110,9 +110,17 @@ function AccountsInner() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Счета и кошельки</h1>
-          <p className="mt-1 text-muted-foreground">Управление счетами и балансами</p>
+        <div className="flex items-center gap-3">
+          <Link href="/cash-register">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Назад в кассу
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold">Счета и кошельки</h1>
+            <p className="mt-1 text-muted-foreground">Управление счетами и балансами</p>
+          </div>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
