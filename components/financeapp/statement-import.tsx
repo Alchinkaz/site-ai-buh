@@ -520,25 +520,6 @@ export function StatementImport() {
         }
         const date = dateMatch?.[1]?.trim() || ''
         
-        // Проверяем дубликаты по номеру документа + дате
-        if (documentNumberValue && date) {
-          const duplicateKey = `${documentNumberValue}_${date}`
-          if (seenTransactions.has(duplicateKey)) {
-            console.log(`⚠️ Пропущен дубликат: ${documentNumberValue} - ${date}`)
-            duplicateCount.count++
-            return
-          }
-          
-          // Проверяем существующие транзакции в базе данных
-          if (isTransactionExists(documentNumberValue)) {
-            console.log(`⚠️ Пропущена существующая транзакция: ${documentNumberValue}`)
-            duplicateCount.count++
-            return
-          }
-          
-          seenTransactions.add(duplicateKey)
-        }
-        
         // 4. ПолучательИИК и ПлательщикИИК - определяем тип операции
         let type: 'income' | 'expense' | 'transfer' | undefined
         let amount = 0
@@ -640,6 +621,27 @@ export function StatementImport() {
             accountType: accountType
           })
           return
+        }
+        
+        // Проверяем дубликаты ПОСЛЕ определения счета - используем счет, номер документа, дату и сумму
+        // Это гарантирует, что транзакции из разных банков не будут считаться дубликатами
+        if (documentNumberValue && date && amount) {
+          const accountId = account.id
+          const duplicateKey = `${accountId}_${documentNumberValue}_${date}_${amount.toFixed(2)}`
+          if (seenTransactions.has(duplicateKey)) {
+            console.log(`⚠️ Пропущен дубликат: счет ${account.name}, документ ${documentNumberValue}, дата ${date}, сумма ${amount}`)
+            duplicateCount.count++
+            return
+          }
+          
+          // Проверяем существующие транзакции в базе данных
+          if (isTransactionExists(documentNumberValue)) {
+            console.log(`⚠️ Пропущена существующая транзакция: ${documentNumberValue}`)
+            duplicateCount.count++
+            return
+          }
+          
+          seenTransactions.add(duplicateKey)
         }
         
         // Для переводов также определяем счет получателя (без автсоздания - показываем диалог при отсутствии)
