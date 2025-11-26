@@ -5,22 +5,107 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Wallet, PlusCircle } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import { Wallet, PlusCircle, Trash2, Building2, CreditCard, Banknote } from "lucide-react"
 import { FinanceProvider, useFinance } from "@/lib/financeapp/finance-context"
-import { AccountCard } from "@/components/financeapp/account-card"
 import { AccountForm } from "@/components/financeapp/account-form"
-import { formatCurrency } from "@/lib/financeapp/finance-utils"
+import { formatCurrency, maskAccountNumber } from "@/lib/financeapp/finance-utils"
+import { toast } from "sonner"
+import Link from "next/link"
 
 function AccountsInner() {
-  const { accounts, transactions } = useFinance()
+  const { accounts, transactions, deleteAccount } = useFinance()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set())
 
   const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
   const getTransactionCount = (accountId: string) =>
     transactions.filter((t) => t.accountId === accountId || t.toAccountId === accountId).length
 
-  const rootAccounts = accounts.filter((a) => !a.parentId)
-  const childrenOf = (parentId: string) => accounts.filter((a) => a.parentId === parentId)
+  const handleSelectAccount = (accountId: string, checked: boolean) => {
+    setSelectedAccounts(prev => {
+      const newSet = new Set(prev)
+      if (checked) {
+        newSet.add(accountId)
+      } else {
+        newSet.delete(accountId)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedAccounts(new Set(accounts.map(a => a.id)))
+    } else {
+      setSelectedAccounts(new Set())
+    }
+  }
+
+  const handleDeleteSelected = () => {
+    if (selectedAccounts.size === 0) {
+      toast.error("Выберите счета для удаления")
+      return
+    }
+
+    // Проверяем, есть ли транзакции у выбранных счетов
+    const accountsWithTransactions = accounts.filter(acc => {
+      if (!selectedAccounts.has(acc.id)) return false
+      const count = getTransactionCount(acc.id)
+      return count > 0
+    })
+
+    if (accountsWithTransactions.length > 0) {
+      toast.error(`Нельзя удалить счета с транзакциями: ${accountsWithTransactions.map(a => a.name).join(", ")}`)
+      return
+    }
+
+    const count = selectedAccounts.size
+    if (confirm(`Вы уверены, что хотите удалить ${count} счетов?`)) {
+      try {
+        selectedAccounts.forEach(id => deleteAccount(id))
+        setSelectedAccounts(new Set())
+        toast.success(`Удалено ${count} счетов`)
+      } catch (error) {
+        console.error("Error deleting accounts:", error)
+        toast.error("Не удалось удалить счета")
+      }
+    }
+  }
+
+  const getAccountIcon = (type: string) => {
+    switch (type) {
+      case "bank":
+        return <Building2 className="h-4 w-4" />
+      case "kaspi":
+        return <CreditCard className="h-4 w-4" />
+      case "card":
+        return <CreditCard className="h-4 w-4" />
+      case "cash":
+        return <Banknote className="h-4 w-4" />
+      default:
+        return <Wallet className="h-4 w-4" />
+    }
+  }
+
+  const getAccountTypeLabel = (type: string) => {
+    switch (type) {
+      case "bank":
+        return "Банк"
+      case "kaspi":
+        return "Kaspi"
+      case "cash":
+        return "Наличные"
+      case "card":
+        return "Карта"
+      case "other":
+        return "Другое"
+      default:
+        return type
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -87,24 +172,89 @@ function AccountsInner() {
           </Dialog>
         </div>
       ) : (
-        <div className="space-y-6">
-          {rootAccounts.map((account) => {
-            const children = childrenOf(account.id)
-            const groupBalance = account.balance + children.reduce((s, c) => s + c.balance, 0)
-            return (
-              <div key={account.id} className="space-y-3">
-                <AccountCard account={{ ...account, balance: groupBalance }} transactionCount={getTransactionCount(account.id)} />
-                {children.length > 0 && (
-                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 pl-1">
-                    {children.map((child) => (
-                      <AccountCard key={child.id} account={child} transactionCount={getTransactionCount(child.id)} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Список счетов ({accounts.length})</CardTitle>
+              {selectedAccounts.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Удалить выбранные ({selectedAccounts.size})
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedAccounts.size === accounts.length && accounts.length > 0}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead>Название</TableHead>
+                    <TableHead>Номер счета</TableHead>
+                    <TableHead>Тип</TableHead>
+                    <TableHead>Баланс</TableHead>
+                    <TableHead>Транзакций</TableHead>
+                    <TableHead className="text-right">Действия</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {accounts.map((account) => {
+                    const transactionCount = getTransactionCount(account.id)
+                    return (
+                      <TableRow key={account.id} className="hover:bg-muted/50">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedAccounts.has(account.id)}
+                            onCheckedChange={(checked) => handleSelectAccount(account.id, checked as boolean)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <div className="text-primary">{getAccountIcon(account.type)}</div>
+                            <span>{account.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {account.accountNumber ? (
+                            <span className="text-sm text-muted-foreground font-mono" title={account.accountNumber}>
+                              {maskAccountNumber(account.accountNumber)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{getAccountTypeLabel(account.type)}</Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {formatCurrency(account.balance, account.currency)}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">{transactionCount}</span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="link" size="sm" asChild className="h-auto p-0">
+                            <Link href={`/cash-register/accounts-fa/${account.id}`}>Подробнее →</Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
