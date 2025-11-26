@@ -227,6 +227,87 @@ def determine_transaction_type(record: Dict[str, str]) -> Dict[str, str]:
     
     return result
 
+def detect_bank_by_iik(iik: str) -> tuple[str, str]:
+    """
+    Определяет банк и тип счета по ИИК (IBAN)
+    Возвращает (bank_name, account_type)
+    """
+    if not iik:
+        return ("Неизвестно", "other")
+    
+    iik_clean = iik.replace(" ", "").upper()
+    
+    # Определение банка по префиксу ИИК
+    bank_mapping = {
+        "KZ877": ("Kaspi Bank", "bank"),
+        "KZ887": ("Kaspi Pay", "kaspi"),
+        "KZ949": ("Forte Bank", "bank"),
+        "KZ086": ("Halyk Bank", "bank"),
+        "KZ209": ("Forte Bank", "bank"),
+        "KZ119": ("Forte Bank", "bank"),
+        "CASH": ("Cash Desk", "cash"),
+    }
+    
+    # Проверяем по первым 5 символам
+    for prefix, (bank_name, account_type) in bank_mapping.items():
+        if iik_clean.startswith(prefix):
+            return (bank_name, account_type)
+    
+    return ("Неизвестный банк", "other")
+
+def ensure_account_exists(iik: str, supabase, company_id: Optional[str] = None) -> bool:
+    """
+    Проверяет существование счета по ИИК и создает его, если не существует.
+    Возвращает True, если счет существует или был создан успешно.
+    """
+    if not iik or not iik.strip():
+        return False
+    
+    if iik.upper() == CASH_ACCOUNT:
+        return True  # Касса уже должна существовать
+    
+    try:
+        # Нормализуем ИИК
+        iik_clean = iik.replace(" ", "").upper()
+        
+        # Проверяем, существует ли счет
+        if company_id:
+            existing = supabase.table("accounts").select("id").eq("company_id", company_id).eq("account_number", iik_clean).execute()
+            if existing.data:
+                return True  # Счет уже существует
+        
+        # Определяем банк и тип счета
+        bank_name, account_type = detect_bank_by_iik(iik_clean)
+        
+        # Проверяем, является ли это нашим счетом
+        is_our_account = iik_clean in [acc.replace(" ", "").upper() for acc in OUR_ACCOUNTS]
+        
+        # Создаем счет
+        account_data = {
+            "company_id": company_id,
+            "account_number": iik_clean,
+            "bank_name": bank_name,
+            "account_type": account_type,
+            "is_our_account": is_our_account,
+        }
+        
+        # Используем upsert для избежания дубликатов
+        result = supabase.table("accounts").upsert(
+            account_data,
+            on_conflict="company_id,account_number"
+        ).execute()
+        
+        if result.data:
+            print(f"✅ Создан/обновлен счет: {iik_clean} ({bank_name})")
+            return True
+        else:
+            print(f"⚠️ Не удалось создать счет: {iik_clean}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Ошибка при создании счета {iik}: {e}")
+        return False
+
 def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
     """Сохраняет транзакции в базу данных Supabase"""
     try:
@@ -239,6 +320,24 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
             return False
         
         company_id = company_result.data[0]["id"]
+        
+        # Собираем все уникальные ИИК из транзакций для автоматического создания счетов
+        unique_iiks = set()
+        for transaction in transactions:
+            payer_iik = transaction.get("ПлательщикИИК", "").strip()
+            receiver_iik = transaction.get("ПолучательИИК", "").strip()
+            from_account = transaction.get("СчетОткуда", "").strip()
+            to_account = transaction.get("СчетКуда", "").strip()
+            account = transaction.get("Счет", "").strip()
+            
+            for iik in [payer_iik, receiver_iik, from_account, to_account, account]:
+                if iik and iik.upper() != CASH_ACCOUNT:
+                    unique_iiks.add(iik.replace(" ", "").upper())
+        
+        # Автоматически создаем все счета, которых еще нет
+        print(f"📋 Проверяю и создаю {len(unique_iiks)} уникальных счетов...")
+        for iik in unique_iiks:
+            ensure_account_exists(iik, supabase, company_id)
         
         # Подготавливаем данные для вставки/синхронизации
         db_transactions = []
@@ -557,7 +656,7 @@ def get_recent_transactions(limit: int = 10) -> List[Dict]:
         if not company_result.data:
             return []
         
-        company_id = company_result.data[0]["id"]
+            company_id = company_result.data[0]["id"]
         
         # Получаем последние транзакции
         result = supabase.table("transactions")\
@@ -594,15 +693,33 @@ def validate_record(record: Dict[str, str]) -> bool:
     
     return True
 
-def parse_1c_files_improved(file_paths: List[str]) -> List[Dict[str, str]]:
-    """Улучшенная функция парсинга файлов 1C"""
+def parse_1c_files_improved(file_paths: List[str], auto_create_accounts: bool = True) -> List[Dict[str, str]]:
+    """Улучшенная функция парсинга файлов 1C
+    
+    Args:
+        file_paths: Список путей к файлам для парсинга
+        auto_create_accounts: Автоматически создавать счета при парсинге (по умолчанию True)
+    """
     all_records = []
     
+    # Получаем company_id для автоматического создания счетов
+    company_id = None
+    supabase = None
+    if auto_create_accounts:
+        try:
+            supabase = get_supabase_client()
+            company_result = supabase.table("companies").select("id").eq("name", COMPANY_NAME).execute()
+            if company_result.data:
+                company_id = company_result.data[0]["id"]
+        except Exception as e:
+            print(f"⚠️ Не удалось подключиться к Supabase для автосоздания счетов: {e}")
+            auto_create_accounts = False
+
     for file_path in file_paths:
         if not os.path.exists(file_path):
             print(f"Файл не найден: {file_path}")
             continue
-        
+
         try:
             encoding = detect_encoding(file_path)
             with open(file_path, "r", encoding=encoding, errors="ignore") as f:
@@ -610,10 +727,10 @@ def parse_1c_files_improved(file_paths: List[str]) -> List[Dict[str, str]]:
         except Exception as e:
             print(f"Ошибка чтения файла {file_path}: {e}")
             continue
-        
+
         # Унификация ключей - улучшенная логика
         text = re.sub(r"([А-ЯA-Z_]+)=", lambda m: m.group(1).capitalize() + "=", text)
-        
+
         # Разделяем на документы - улучшенная логика
         doc_patterns = [
             r"СекцияДокумент=.*?\n",
@@ -632,9 +749,9 @@ def parse_1c_files_improved(file_paths: List[str]) -> List[Dict[str, str]]:
         for doc in docs:
             if not doc.strip():
                 continue
-            
+
             record = {}
-            
+
             # Извлекаем поля с улучшенной логикой
             for field in FIELDS:
                 value = extract_field_value(doc, field)
@@ -643,17 +760,30 @@ def parse_1c_files_improved(file_paths: List[str]) -> List[Dict[str, str]]:
             
             # Пропускаем записи без даты операции
             if "ДатаОперации" not in record:
-                continue
-            
+                    continue
+
             # Нормализуем дату
-            record["ДатаОперации"] = parse_date(record["ДатаОперации"]) or record["ДатаОперации"]
-            
+                record["ДатаОперации"] = parse_date(record["ДатаОперации"]) or record["ДатаОперации"]
+
             # Убираем лишнюю строку "Сумма" при наличии СуммаРасход/СуммаПриход
             if "Сумма" in record and ("СуммаРасход" in record or "СуммаПриход" in record):
                 record.pop("Сумма", None)
             
             # Определяем тип транзакции
             transaction_info = determine_transaction_type(record)
+            
+            # Автоматически создаем счета, если они не существуют
+            if auto_create_accounts and supabase and company_id:
+                payer_iik = record.get("ПлательщикИИК", "").strip()
+                receiver_iik = record.get("ПолучательИИК", "").strip()
+                from_account = transaction_info.get("СчетОткуда", "").strip()
+                to_account = transaction_info.get("СчетКуда", "").strip()
+                account = transaction_info.get("Счет", "").strip()
+                
+                # Создаем все найденные счета
+                for iik in [payer_iik, receiver_iik, from_account, to_account, account]:
+                    if iik:
+                        ensure_account_exists(iik, supabase, company_id)
             
             # Пропускаем операции, не связанные с нашими счетами
             if not transaction_info["ТипТранзакции"]:
@@ -662,7 +792,7 @@ def parse_1c_files_improved(file_paths: List[str]) -> List[Dict[str, str]]:
             # Валидируем запись
             if not validate_record(record):
                 continue
-            
+
             # Формируем финальную запись
             final_record = {
                 **{f: record.get(f, "") for f in FIELDS},

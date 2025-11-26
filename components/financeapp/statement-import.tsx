@@ -189,8 +189,25 @@ export function StatementImport() {
     return matchingAccount ? matchingAccount.name : null
   }
 
+  // Функция для определения банка по ИИК
+  function detectBankByIIK(iik: string): { bankName: string, accountType: "bank" | "kaspi" | "cash" | "other" } {
+    if (!iik) return { bankName: "Неизвестный банк", accountType: "other" }
+    
+    const iikClean = iik.replace(/\s+/g, '').toUpperCase()
+    
+    // Определение банка по префиксу ИИК
+    if (iikClean.startsWith('KZ877')) return { bankName: "Kaspi Bank", accountType: "bank" }
+    if (iikClean.startsWith('KZ887')) return { bankName: "Kaspi Pay", accountType: "kaspi" }
+    if (iikClean.startsWith('KZ949') || iikClean.startsWith('KZ209') || iikClean.startsWith('KZ119')) return { bankName: "Forte Bank", accountType: "bank" }
+    if (iikClean.startsWith('KZ086')) return { bankName: "Halyk Bank", accountType: "bank" }
+    if (iikClean === 'CASH') return { bankName: "Cash Desk", accountType: "cash" }
+    
+    return { bankName: "Неизвестный банк", accountType: "other" }
+  }
+
   // Функция для поиска счета по ИИК (возвращает объект счета)
-  function findAccountByIIK(accountIIK: string): any | null {
+  // Автоматически создает счет, если его нет
+  function findAccountByIIK(accountIIK: string, autoCreate: boolean = true): any | null {
     if (!accountIIK || accountIIK.trim() === '') return null
     
     const iikTrimmed = accountIIK.trim()
@@ -211,7 +228,52 @@ export function StatementImport() {
       return accountNumber === iikClean
     })
     
-    return matchingAccount || null
+    // Если счет найден, возвращаем его
+    if (matchingAccount) {
+      return matchingAccount
+    }
+    
+    // Если счет не найден и включено автсоздание - создаем новый счет
+    if (autoCreate && iikTrimmed.toUpperCase() !== 'CASH') {
+      const { bankName, accountType } = detectBankByIIK(iikTrimmed)
+      
+      // Создаем новый счет
+      const newAccount = {
+        name: `${bankName} (${iikTrimmed.slice(-4)})`, // Последние 4 цифры для краткости
+        type: accountType,
+        balance: 0,
+        currency: "KZT",
+        accountNumber: iikTrimmed,
+      }
+      
+      console.log(`📝 Автоматически создан счет: ${newAccount.name} (${iikTrimmed})`)
+      addAccount(newAccount)
+      
+      // После создания счета ищем его в обновленном списке
+      // addAccount синхронно обновляет accounts через setState
+      // Подождем немного и попробуем найти созданный счет
+      const createdAccount = accounts.find(account => 
+        account.accountNumber?.replace(/\s+/g, '') === iikTrimmed.replace(/\s+/g, '')
+      )
+      
+      if (createdAccount) {
+        return createdAccount
+      }
+      
+      // Если счет еще не найден, возвращаем базовую структуру
+      // Счет будет найден при следующем вызове функции
+      return {
+        id: `temp-${iikTrimmed}`,
+        name: newAccount.name,
+        type: newAccount.type,
+        balance: 0,
+        currency: "KZT",
+        accountNumber: iikTrimmed,
+        createdAt: new Date().toISOString()
+      }
+    }
+    
+    return null
   }
 
   // Функция для проверки существующих транзакций по номеру документа
@@ -402,19 +464,19 @@ export function StatementImport() {
         const purpose = block.match(/НазначениеПлатежа=(.+)/i)
         const purposeText = purpose?.[1]?.trim() || ''
         
-        // Автоматически определяем счет по ИИК
-        const account = findAccountByIIK(accountIIK)
+        // Автоматически определяем счет по ИИК (с автсозданием)
+        const account = findAccountByIIK(accountIIK, true)
         if (!account) {
-          console.warn(`⚠️ Не найден счет для ИИК: ${accountIIK}`)
+          console.warn(`⚠️ Не удалось создать или найти счет для ИИК: ${accountIIK}`)
           return
         }
         
-        // Для переводов также определяем счет получателя
+        // Для переводов также определяем счет получателя (с автсозданием)
         let toAccount = null
         if (type === 'transfer') {
-          toAccount = findAccountByIIK(toAccountIIK)
+          toAccount = findAccountByIIK(toAccountIIK, true)
           if (!toAccount) {
-            console.warn(`⚠️ Не найден счет получателя для ИИК: ${toAccountIIK}`)
+            console.warn(`⚠️ Не удалось создать или найти счет получателя для ИИК: ${toAccountIIK}`)
             return
           }
         }
