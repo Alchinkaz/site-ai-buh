@@ -426,46 +426,49 @@ export function StatementImport() {
         
         // 1. РАСЧСЧЕТ - определяем какой счет наш
         // Для Форте банка используем РасчСчет, если он есть
-        const raschSchetMatch = block.match(/РасчСчет=(.+)/i)
+        // Пробуем разные варианты названия поля
+        const raschSchetMatch = block.match(/(?:РасчСчет|РасчетныйСчет|РасчСч|РасчетныйСч)\s*=\s*(.+)/i)
         const raschSchetValue = raschSchetMatch?.[1]?.trim() || ''
         
         let payerIIKValue = ''
         let receiverIIKValue = ''
         
+        // Стандартная логика для всех банков
+        const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
+        const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
+        payerIIKValue = payerIIK?.[1]?.trim() || ''
+        receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+        
+        // Если есть РасчСчет, используем его как наш счет (для Форте банка)
         if (raschSchetValue) {
-          // Для Форте банка: РасчСчет - это наш счет
-          payerIIKValue = raschSchetValue
-          const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
-          receiverIIKValue = receiverIIK?.[1]?.trim() || ''
-          // Если получатель не указан, используем РасчСчет и для получателя
-          if (!receiverIIKValue) {
-            receiverIIKValue = raschSchetValue
-          }
           console.log(`🏦 Форте банк: РасчСчет="${raschSchetValue}"`)
-        } else {
-          // Стандартная логика для других банков
-          const payerIIK = block.match(/ПлательщикИИК=(.+)/i)
-          const receiverIIK = block.match(/ПолучательИИК=(.+)/i)
-          payerIIKValue = payerIIK?.[1]?.trim() || ''
-          receiverIIKValue = receiverIIK?.[1]?.trim() || ''
+          // РасчСчет - это наш счет, используем его вместо ПлательщикИИК для определения типа транзакции
+          payerIIKValue = raschSchetValue
         }
         
         // Проверяем, какие номера счетов принадлежат нашим счетам
         // Если есть РасчСчет, то это наш счет (для Форте банка)
-        const isPayerOurAccount = raschSchetValue ? true : accounts.some(acc => {
-          if (!acc.accountNumber) return false
-          const accountNumber = acc.accountNumber.trim()
-          const payerIIK = payerIIKValue.trim()
-          return accountNumber === payerIIK || 
-                 accountNumber.replace(/\s+/g, '') === payerIIK.replace(/\s+/g, '')
-        })
-        const isReceiverOurAccount = accounts.some(acc => {
-          if (!acc.accountNumber) return false
-          const accountNumber = acc.accountNumber.trim()
-          const receiverIIK = receiverIIKValue.trim()
-          return accountNumber === receiverIIK || 
-                 accountNumber.replace(/\s+/g, '') === receiverIIK.replace(/\s+/g, '')
-        })
+        // Также проверяем по префиксу KZ949 (Forte Bank)
+        const payerIIKNormalized = payerIIKValue.replace(/\s+/g, '').toUpperCase()
+        const receiverIIKNormalized = receiverIIKValue.replace(/\s+/g, '').toUpperCase()
+        
+        const isPayerOurAccount = raschSchetValue ? true : (
+          payerIIKNormalized.startsWith('KZ949') || // Форте банк по префиксу
+          accounts.some(acc => {
+            if (!acc.accountNumber) return false
+            const accountNumber = acc.accountNumber.replace(/\s+/g, '').toUpperCase()
+            return accountNumber === payerIIKNormalized
+          })
+        )
+        
+        const isReceiverOurAccount = (
+          receiverIIKNormalized.startsWith('KZ949') || // Форте банк по префиксу
+          accounts.some(acc => {
+            if (!acc.accountNumber) return false
+            const accountNumber = acc.accountNumber.replace(/\s+/g, '').toUpperCase()
+            return accountNumber === receiverIIKNormalized
+          })
+        )
         
         console.log(`🔍 Анализ счетов:`)
         if (raschSchetValue) {
@@ -572,15 +575,15 @@ export function StatementImport() {
         } else if (type === 'income') {
           // Для доходов: контрагент - плательщик, счет - получатель (наш счет)
           counterpartyName = payerName
-          // Для Форте банка используем РасчСчет, если он есть
+          // Для Форте банка используем РасчСчет, если он есть, иначе ПолучательИИК
           accountIIK = raschSchetValue || receiverIIKValue
-          console.log(`💰 ДОХОД: контрагент "${counterpartyName}", счет ${accountIIK}`)
+          console.log(`💰 ДОХОД: контрагент "${counterpartyName}", счет ${accountIIK} (РасчСчет: ${raschSchetValue || 'нет'}, ПолучательИИК: ${receiverIIKValue || 'нет'})`)
         } else if (type === 'expense') {
           // Для расходов: контрагент - получатель, счет - плательщик (наш счет)
           counterpartyName = receiverName
-          // Для Форте банка используем РасчСчет, если он есть
+          // Для Форте банка используем РасчСчет, если он есть, иначе ПлательщикИИК
           accountIIK = raschSchetValue || payerIIKValue
-          console.log(`💸 РАСХОД: контрагент "${counterpartyName}", счет ${accountIIK}`)
+          console.log(`💸 РАСХОД: контрагент "${counterpartyName}", счет ${accountIIK} (РасчСчет: ${raschSchetValue || 'нет'}, ПлательщикИИК: ${payerIIKValue || 'нет'})`)
         }
         
         // Исключаем записи без контрагента
