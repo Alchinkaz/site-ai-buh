@@ -385,12 +385,14 @@ export function StatementImport() {
   }
 
   // Функция для проверки существующих транзакций по номеру документа
-  function isTransactionExists(documentNumber: string): boolean {
-    if (!documentNumber || documentNumber.trim() === '') return false
+  function isTransactionExists(documentNumber: string): { exists: boolean, transaction?: any } {
+    if (!documentNumber || documentNumber.trim() === '') return { exists: false }
     
-    return transactions.some(transaction => 
+    const found = transactions.find(transaction => 
       transaction.documentNumber === documentNumber.trim()
     )
+    
+    return { exists: !!found, transaction: found }
   }
 
   // Функция для тестирования логики определения типа транзакции
@@ -628,20 +630,50 @@ export function StatementImport() {
         if (documentNumberValue && date && amount) {
           const accountId = account.id
           const duplicateKey = `${accountId}_${documentNumberValue}_${date}_${amount.toFixed(2)}`
+          
+          console.log(`🔍 Проверка дубликата:`)
+          console.log(`   Ключ: ${duplicateKey}`)
+          console.log(`   Счет: ${account.name} (ID: ${accountId}, ИИК: ${account.accountNumber})`)
+          console.log(`   Документ: ${documentNumberValue}`)
+          console.log(`   Дата: ${date}`)
+          console.log(`   Сумма: ${amount}`)
+          console.log(`   Тип: ${type}`)
+          console.log(`   Контрагент: ${counterpartyName}`)
+          
           if (seenTransactions.has(duplicateKey)) {
-            console.log(`⚠️ Пропущен дубликат: счет ${account.name}, документ ${documentNumberValue}, дата ${date}, сумма ${amount}`)
+            console.error(`❌ ДУБЛИКАТ ОБНАРУЖЕН (в текущей сессии):`)
+            console.error(`   Ключ: ${duplicateKey}`)
+            console.error(`   Счет: ${account.name} (ID: ${accountId})`)
+            console.error(`   Документ: ${documentNumberValue}`)
+            console.error(`   Дата: ${date}`)
+            console.error(`   Сумма: ${amount}`)
+            console.error(`   Это означает, что такая же транзакция уже была обработана в этой выписке`)
             duplicateCount.count++
             return
           }
           
           // Проверяем существующие транзакции в базе данных
-          if (isTransactionExists(documentNumberValue)) {
-            console.log(`⚠️ Пропущена существующая транзакция: ${documentNumberValue}`)
+          const existingCheck = isTransactionExists(documentNumberValue)
+          if (existingCheck.exists) {
+            console.error(`❌ ДУБЛИКАТ ОБНАРУЖЕН (в базе данных):`)
+            console.error(`   Документ: ${documentNumberValue}`)
+            console.error(`   Найдена существующая транзакция:`)
+            console.error(`   - ID: ${existingCheck.transaction?.id}`)
+            console.error(`   - Дата: ${existingCheck.transaction?.date}`)
+            console.error(`   - Сумма: ${existingCheck.transaction?.amount}`)
+            console.error(`   - Тип: ${existingCheck.transaction?.type}`)
+            console.error(`   - Счет: ${accounts.find(a => a.id === existingCheck.transaction?.accountId)?.name || 'не найден'}`)
             duplicateCount.count++
             return
           }
           
+          console.log(`✅ Дубликат не найден, добавляем транзакцию`)
           seenTransactions.add(duplicateKey)
+        } else {
+          console.warn(`⚠️ Недостаточно данных для проверки дубликата:`)
+          console.warn(`   Документ: ${documentNumberValue || 'нет'}`)
+          console.warn(`   Дата: ${date || 'нет'}`)
+          console.warn(`   Сумма: ${amount || 'нет'}`)
         }
         
         // Для переводов также определяем счет получателя (без автсоздания - показываем диалог при отсутствии)
