@@ -384,13 +384,21 @@ export function StatementImport() {
     return null
   }
 
-  // Функция для проверки существующих транзакций по номеру документа
-  function isTransactionExists(documentNumber: string): { exists: boolean, transaction?: any } {
+  // Функция для проверки существующих транзакций по номеру документа, счету, дате и сумме
+  function isTransactionExists(documentNumber: string, accountId: string, date: string, amount: number): { exists: boolean, transaction?: any } {
     if (!documentNumber || documentNumber.trim() === '') return { exists: false }
+    if (!accountId || !date || !amount) return { exists: false }
     
-    const found = transactions.find(transaction => 
-      transaction.documentNumber === documentNumber.trim()
-    )
+    // Проверяем по комбинации: счет + номер документа + дата + сумма
+    // Это гарантирует, что транзакции с одинаковым номером документа, но разными счетами/датами/суммами не будут считаться дубликатами
+    const found = transactions.find(transaction => {
+      const sameDocument = transaction.documentNumber === documentNumber.trim()
+      const sameAccount = transaction.accountId === accountId
+      const sameDate = transaction.date === date
+      const sameAmount = Math.abs(transaction.amount - amount) < 0.01 // Сравнение с учетом погрешности округления
+      
+      return sameDocument && sameAccount && sameDate && sameAmount
+    })
     
     return { exists: !!found, transaction: found }
   }
@@ -653,9 +661,11 @@ export function StatementImport() {
           }
           
           // Проверяем существующие транзакции в базе данных
-          const existingCheck = isTransactionExists(documentNumberValue)
+          // Передаем все параметры для точной проверки дубликата
+          const existingCheck = isTransactionExists(documentNumberValue, accountId, date, amount)
           if (existingCheck.exists) {
             console.error(`❌ ДУБЛИКАТ ОБНАРУЖЕН (в базе данных):`)
+            console.error(`   Ключ: ${duplicateKey}`)
             console.error(`   Документ: ${documentNumberValue}`)
             console.error(`   Найдена существующая транзакция:`)
             console.error(`   - ID: ${existingCheck.transaction?.id}`)
@@ -663,6 +673,10 @@ export function StatementImport() {
             console.error(`   - Сумма: ${existingCheck.transaction?.amount}`)
             console.error(`   - Тип: ${existingCheck.transaction?.type}`)
             console.error(`   - Счет: ${accounts.find(a => a.id === existingCheck.transaction?.accountId)?.name || 'не найден'}`)
+            console.error(`   Сравнение с новой транзакцией:`)
+            console.error(`   - Счет: ${account.name} (ID: ${accountId})`)
+            console.error(`   - Дата: ${date}`)
+            console.error(`   - Сумма: ${amount}`)
             duplicateCount.count++
             return
           }
