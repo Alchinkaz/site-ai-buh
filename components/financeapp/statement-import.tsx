@@ -386,18 +386,42 @@ export function StatementImport() {
 
   // Функция для проверки существующих транзакций по номеру документа, счету, дате и сумме
   function isTransactionExists(documentNumber: string, accountId: string, date: string, amount: number): { exists: boolean, transaction?: any } {
-    if (!documentNumber || documentNumber.trim() === '') return { exists: false }
     if (!accountId || !date || !amount) return { exists: false }
+    
+    // Преобразуем дату из формата DD.MM.YYYY в YYYY-MM-DD для сравнения
+    // (транзакции в базе хранятся в формате YYYY-MM-DD)
+    let normalizedDate = date
+    const dateMatch = date.match(/(\d{2})\.(\d{2})\.(\d{4})/)
+    if (dateMatch) {
+      normalizedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`
+    }
+    
+    const documentNumberTrimmed = documentNumber?.trim() || ''
     
     // Проверяем по комбинации: счет + номер документа + дата + сумма
     // Это гарантирует, что транзакции с одинаковым номером документа, но разными счетами/датами/суммами не будут считаться дубликатами
     const found = transactions.find(transaction => {
-      const sameDocument = transaction.documentNumber === documentNumber.trim()
       const sameAccount = transaction.accountId === accountId
-      const sameDate = transaction.date === date
+      const sameDate = transaction.date === normalizedDate
       const sameAmount = Math.abs(transaction.amount - amount) < 0.01 // Сравнение с учетом погрешности округления
       
-      return sameDocument && sameAccount && sameDate && sameAmount
+      // Если у новой транзакции есть номер документа, проверяем его
+      // Если у новой транзакции нет номера документа, проверяем только по счету, дате и сумме
+      if (documentNumberTrimmed) {
+        const sameDocument = (transaction.documentNumber || '') === documentNumberTrimmed
+        const isMatch = sameDocument && sameAccount && sameDate && sameAmount
+        
+        // Логируем только если почти все совпадает (для диагностики)
+        if (sameAccount && sameDate && sameAmount && !sameDocument) {
+          console.log(`   ⚠️ Почти дубликат (не совпадает документ): БД документ="${transaction.documentNumber || 'нет'}", новый="${documentNumberTrimmed}"`)
+        }
+        
+        return isMatch
+      } else {
+        // Если у новой транзакции нет номера документа, проверяем только по счету, дате и сумме
+        // (но это может привести к ложным срабатываниям, поэтому лучше всегда иметь номер документа)
+        return sameAccount && sameDate && sameAmount
+      }
     })
     
     return { exists: !!found, transaction: found }
@@ -662,6 +686,9 @@ export function StatementImport() {
           
           // Проверяем существующие транзакции в базе данных
           // Передаем все параметры для точной проверки дубликата
+          console.log(`🔍 Проверка в базе данных:`)
+          console.log(`   Ищем: документ="${documentNumberValue}", счет="${accountId}", дата="${date}", сумма="${amount}"`)
+          console.log(`   Всего транзакций в базе: ${transactions.length}`)
           const existingCheck = isTransactionExists(documentNumberValue, accountId, date, amount)
           if (existingCheck.exists) {
             console.error(`❌ ДУБЛИКАТ ОБНАРУЖЕН (в базе данных):`)
@@ -673,12 +700,15 @@ export function StatementImport() {
             console.error(`   - Сумма: ${existingCheck.transaction?.amount}`)
             console.error(`   - Тип: ${existingCheck.transaction?.type}`)
             console.error(`   - Счет: ${accounts.find(a => a.id === existingCheck.transaction?.accountId)?.name || 'не найден'}`)
+            console.error(`   - Документ в БД: ${existingCheck.transaction?.documentNumber || 'нет'}`)
             console.error(`   Сравнение с новой транзакцией:`)
             console.error(`   - Счет: ${account.name} (ID: ${accountId})`)
             console.error(`   - Дата: ${date}`)
             console.error(`   - Сумма: ${amount}`)
             duplicateCount.count++
             return
+          } else {
+            console.log(`✅ Дубликат в базе данных не найден`)
           }
           
           console.log(`✅ Дубликат не найден, добавляем транзакцию`)
