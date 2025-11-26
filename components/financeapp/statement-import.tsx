@@ -2,16 +2,17 @@
 
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Upload, AlertCircle, CheckCircle } from "lucide-react"
+import { Upload, AlertCircle, CheckCircle, Wallet } from "lucide-react"
 import * as XLSX from "xlsx"
 import Papa from "papaparse"
 import { useFinance } from "@/lib/financeapp/finance-context"
 import type { Category } from "@/lib/financeapp/types"
+import { AccountForm } from "@/components/financeapp/account-form"
 
 export function StatementImport() {
   const { accounts, categories, counterparties, transactions, addTransaction, addAccount, addCategory, addCounterparty } = useFinance()
@@ -23,6 +24,19 @@ export function StatementImport() {
   const [selectedAccountId, setSelectedAccountId] = useState("")
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
+  // Состояние для диалога добавления счета
+  const [missingAccountDialog, setMissingAccountDialog] = useState<{
+    open: boolean
+    accountIIK: string
+    bankName: string
+    accountType: "bank" | "cash" | "kaspi" | "other"
+  }>({
+    open: false,
+    accountIIK: "",
+    bankName: "",
+    accountType: "bank"
+  })
+  const [accountFormOpen, setAccountFormOpen] = useState(false)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -579,19 +593,35 @@ export function StatementImport() {
         const purpose = block.match(/НазначениеПлатежа=(.+)/i)
         const purposeText = purpose?.[1]?.trim() || ''
         
-        // Автоматически определяем счет по ИИК (с автсозданием, используя кэш)
-        const account = findAccountByIIK(accountIIK, true, processedIIKs)
+        // Определяем счет по ИИК (без автсоздания - показываем диалог при отсутствии)
+        const account = findAccountByIIK(accountIIK, false, processedIIKs)
         if (!account) {
           console.warn(`⚠️ Не удалось создать или найти счет для ИИК: ${accountIIK}`)
+          // Показываем диалог с предложением добавить счет
+          const { bankName, accountType } = detectBankByIIK(accountIIK)
+          setMissingAccountDialog({
+            open: true,
+            accountIIK: accountIIK,
+            bankName: bankName,
+            accountType: accountType
+          })
           return
         }
         
-        // Для переводов также определяем счет получателя (с автсозданием, используя кэш)
+        // Для переводов также определяем счет получателя (без автсоздания - показываем диалог при отсутствии)
         let toAccount = null
         if (type === 'transfer') {
-          toAccount = findAccountByIIK(toAccountIIK, true, processedIIKs)
+          toAccount = findAccountByIIK(toAccountIIK, false, processedIIKs)
           if (!toAccount) {
             console.warn(`⚠️ Не удалось создать или найти счет получателя для ИИК: ${toAccountIIK}`)
+            // Показываем диалог с предложением добавить счет получателя
+            const { bankName, accountType } = detectBankByIIK(toAccountIIK)
+            setMissingAccountDialog({
+              open: true,
+              accountIIK: toAccountIIK,
+              bankName: bankName,
+              accountType: accountType
+            })
             return
           }
         }
@@ -743,6 +773,7 @@ export function StatementImport() {
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" className="flex items-center gap-2">
@@ -784,6 +815,80 @@ export function StatementImport() {
         </div>
       </DialogContent>
     </Dialog>
+    {/* Диалог с предложением добавить счет */}
+    <Dialog open={missingAccountDialog.open} onOpenChange={(open) => setMissingAccountDialog({ ...missingAccountDialog, open })}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Счет не найден
+          </DialogTitle>
+          <DialogDescription>
+            Для продолжения импорта необходимо добавить счет в систему.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="mt-2 space-y-1">
+                <p><strong>Номер счета (ИИК):</strong> {missingAccountDialog.accountIIK}</p>
+                <p><strong>Банк:</strong> {missingAccountDialog.bankName}</p>
+                <p><strong>Тип:</strong> {missingAccountDialog.accountType === "bank" ? "Банковский счет" : missingAccountDialog.accountType === "kaspi" ? "Kaspi" : missingAccountDialog.accountType === "cash" ? "Наличные" : "Другое"}</p>
+              </div>
+            </AlertDescription>
+          </Alert>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => {
+                setMissingAccountDialog({ ...missingAccountDialog, open: false })
+                setAccountFormOpen(true)
+              }}
+              className="flex-1"
+            >
+              Добавить счет
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setMissingAccountDialog({ ...missingAccountDialog, open: false })}
+            >
+              Отмена
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    {/* Диалог с формой добавления счета */}
+    <Dialog open={accountFormOpen} onOpenChange={setAccountFormOpen}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Добавить новый счет</DialogTitle>
+          <DialogDescription>
+            Заполните данные для создания счета. Некоторые поля уже заполнены на основе данных из выписки.
+          </DialogDescription>
+        </DialogHeader>
+        <AccountForm
+          initialValues={{
+            name: `${missingAccountDialog.bankName}${missingAccountDialog.accountIIK ? ` (${missingAccountDialog.accountIIK.slice(-4)})` : ''}`,
+            type: missingAccountDialog.accountType,
+            accountNumber: missingAccountDialog.accountIIK,
+            balance: 0,
+            currency: "KZT"
+          }}
+          onSuccess={() => {
+            setAccountFormOpen(false)
+            setMissingAccountDialog({ ...missingAccountDialog, open: false })
+            // После добавления счета пользователь может перезапустить импорт вручную
+            // или мы можем автоматически продолжить парсинг, если файл еще открыт
+          }}
+          onCancel={() => {
+            setAccountFormOpen(false)
+            setMissingAccountDialog({ ...missingAccountDialog, open: false })
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 
