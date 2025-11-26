@@ -38,8 +38,9 @@ export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: A
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.name || !formData.balance) {
-      toast.error("Пожалуйста, заполните все обязательные поля")
+    // Валидация: номер счета теперь обязателен
+    if (!formData.name || !formData.balance || !formData.accountNumber?.trim()) {
+      toast.error("Пожалуйста, заполните все обязательные поля (включая номер счета)")
       return
     }
 
@@ -50,16 +51,26 @@ export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: A
         type: formData.type,
         balance: Number.parseFloat(formData.balance) || 0,
         currency: formData.currency,
-        accountNumber: formData.accountNumber.trim() || undefined,
+        accountNumber: formData.accountNumber.trim(), // Теперь обязательное поле
         parentId: formData.type === "card" && formData.parentId ? formData.parentId : undefined,
       }
 
       if (accountId) {
-        updateAccount(accountId, payload)
-        toast.success(`Счёт "${formData.name}" обновлён`)
+        try {
+          updateAccount(accountId, payload)
+          toast.success(`Счёт "${formData.name}" обновлён`)
+        } catch (error: any) {
+          toast.error(error.message || "Не удалось обновить счёт")
+          return
+        }
       } else {
-        addAccount(payload)
-        toast.success(`Счёт "${formData.name}" успешно создан`)
+        try {
+          addAccount(payload)
+          toast.success(`Счёт "${formData.name}" успешно создан`)
+        } catch (error: any) {
+          toast.error(error.message || "Не удалось создать счёт")
+          return
+        }
       }
 
       if (!accountId) {
@@ -125,9 +136,9 @@ export function AccountForm({ onSuccess, onCancel, accountId, initialValues }: A
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="accountNumber">Номер счёта (необязательно)</Label>
-        <Input id="accountNumber" placeholder="Например: 4400 1234 5678 9012" value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} disabled={isSubmitting} />
-        <p className="text-xs text-muted-foreground">Мы покажем только последние цифры для безопасности.</p>
+        <Label htmlFor="accountNumber">Номер счёта (ИИК) *</Label>
+        <Input id="accountNumber" placeholder="Например: KZ87722C000022014099" value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} required disabled={isSubmitting} />
+        <p className="text-xs text-muted-foreground">Укажите ИИК (номер счета) для автоматического определения при импорте выписок. Должен быть уникальным.</p>
       </div>
 
       <div className="space-y-2">

@@ -255,10 +255,16 @@ def detect_bank_by_iik(iik: str) -> tuple[str, str]:
     
     return ("Неизвестный банк", "other")
 
-def ensure_account_exists(iik: str, supabase, company_id: Optional[str] = None) -> bool:
+def ensure_account_exists(iik: str, supabase, company_id: Optional[str] = None, seen_iiks: Optional[set] = None) -> bool:
     """
     Проверяет существование счета по ИИК и создает его, если не существует.
     Возвращает True, если счет существует или был создан успешно.
+    
+    Args:
+        iik: Номер счета (ИИК)
+        supabase: Клиент Supabase
+        company_id: ID компании
+        seen_iiks: Множество уже обработанных ИИК для избежания повторных проверок
     """
     if not iik or not iik.strip():
         return False
@@ -270,11 +276,20 @@ def ensure_account_exists(iik: str, supabase, company_id: Optional[str] = None) 
         # Нормализуем ИИК
         iik_clean = iik.replace(" ", "").upper()
         
-        # Проверяем, существует ли счет
+        # Используем кэш обработанных ИИК для избежания повторных проверок
+        if seen_iiks is not None:
+            if iik_clean in seen_iiks:
+                return True  # Уже обработан в этой сессии
+            seen_iiks.add(iik_clean)
+        
+        # Проверяем, существует ли счет в базе данных
+        existing = None
+        is_new_account = True
         if company_id:
             existing = supabase.table("accounts").select("id").eq("company_id", company_id).eq("account_number", iik_clean).execute()
             if existing.data:
-                return True  # Счет уже существует
+                is_new_account = False
+                return True  # Счет уже существует в базе
         
         # Определяем банк и тип счета
         bank_name, account_type = detect_bank_by_iik(iik_clean)
@@ -291,20 +306,25 @@ def ensure_account_exists(iik: str, supabase, company_id: Optional[str] = None) 
             "is_our_account": is_our_account,
         }
         
-        # Используем upsert для избежания дубликатов
+        # Используем upsert для избежания дубликатов (уникальный индекс на company_id, account_number)
         result = supabase.table("accounts").upsert(
             account_data,
             on_conflict="company_id,account_number"
         ).execute()
         
         if result.data:
-            print(f"✅ Создан/обновлен счет: {iik_clean} ({bank_name})")
+            # Выводим сообщение только для новых счетов
+            if is_new_account:
+                print(f"✅ Создан счет: {iik_clean} ({bank_name})")
             return True
         else:
             print(f"⚠️ Не удалось создать счет: {iik_clean}")
             return False
             
     except Exception as e:
+        # Если ошибка связана с дубликатом - это нормально, счет уже существует
+        if "duplicate" in str(e).lower() or "unique" in str(e).lower():
+            return True
         print(f"❌ Ошибка при создании счета {iik}: {e}")
         return False
 
@@ -335,9 +355,11 @@ def save_transactions_to_database(transactions: List[Dict[str, str]]) -> bool:
                     unique_iiks.add(iik.replace(" ", "").upper())
         
         # Автоматически создаем все счета, которых еще нет
+        # Используем кэш для избежания повторных проверок
+        seen_iiks = set()
         print(f"📋 Проверяю и создаю {len(unique_iiks)} уникальных счетов...")
         for iik in unique_iiks:
-            ensure_account_exists(iik, supabase, company_id)
+            ensure_account_exists(iik, supabase, company_id, seen_iiks)
         
         # Подготавливаем данные для вставки/синхронизации
         db_transactions = []
@@ -702,6 +724,9 @@ def parse_1c_files_improved(file_paths: List[str], auto_create_accounts: bool = 
     """
     all_records = []
     
+    # Кэш для обработанных ИИК, чтобы избежать повторных проверок
+    seen_iiks = set()
+    
     # Получаем company_id для автоматического создания счетов
     company_id = None
     supabase = None
@@ -780,10 +805,10 @@ def parse_1c_files_improved(file_paths: List[str], auto_create_accounts: bool = 
                 to_account = transaction_info.get("СчетКуда", "").strip()
                 account = transaction_info.get("Счет", "").strip()
                 
-                # Создаем все найденные счета
+                # Создаем все найденные счета (используем кэш для избежания дубликатов)
                 for iik in [payer_iik, receiver_iik, from_account, to_account, account]:
                     if iik:
-                        ensure_account_exists(iik, supabase, company_id)
+                        ensure_account_exists(iik, supabase, company_id, seen_iiks)
             
             # Пропускаем операции, не связанные с нашими счетами
             if not transaction_info["ТипТранзакции"]:

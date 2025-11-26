@@ -64,8 +64,23 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [accounts, categories, counterparties, projects, transactions, invoices])
 
   const addAccount = (account: Omit<Account, "id" | "createdAt">) => {
+    // Проверяем уникальность номера счета, если он указан
+    if (account.accountNumber) {
+      const normalizedAccountNumber = account.accountNumber.trim().replace(/\s+/g, '')
+      const existingAccount = accounts.find(a => {
+        if (!a.accountNumber) return false
+        const normalizedExisting = a.accountNumber.trim().replace(/\s+/g, '')
+        return normalizedExisting === normalizedAccountNumber
+      })
+      
+      if (existingAccount) {
+        throw new Error(`Счет с номером ${account.accountNumber} уже существует`)
+      }
+    }
+    
     const newAccount: Account = { ...account, id: generateId(), createdAt: new Date().toISOString() }
     setAccounts((prev) => [...prev, newAccount])
+    return newAccount
   }
 
   const addCategory = (category: Omit<Category, "id">): Category => {
@@ -121,6 +136,20 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }
 
   const updateAccount = (id: string, updates: Partial<Account>) => {
+    // Проверяем уникальность номера счета при обновлении, если он указан
+    if (updates.accountNumber) {
+      const normalizedAccountNumber = updates.accountNumber.trim().replace(/\s+/g, '')
+      const existingAccount = accounts.find(a => {
+        if (!a.accountNumber || a.id === id) return false // Игнорируем текущий счет
+        const normalizedExisting = a.accountNumber.trim().replace(/\s+/g, '')
+        return normalizedExisting === normalizedAccountNumber
+      })
+      
+      if (existingAccount) {
+        throw new Error(`Счет с номером ${updates.accountNumber} уже существует (${existingAccount.name})`)
+      }
+    }
+    
     setAccounts((prev) => prev.map((account) => (account.id === id ? { ...account, ...updates } : account)))
   }
 

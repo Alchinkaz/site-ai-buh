@@ -235,6 +235,18 @@ export function StatementImport() {
     
     // Если счет не найден и включено автсоздание - создаем новый счет
     if (autoCreate && iikTrimmed.toUpperCase() !== 'CASH') {
+      // Дополнительная проверка: убеждаемся, что счет действительно не существует
+      // (на случай, если он был добавлен в другом потоке)
+      const doubleCheck = accounts.find(account => {
+        if (!account.accountNumber) return false
+        const normalized = account.accountNumber.replace(/\s+/g, '').toUpperCase()
+        return normalized === iikTrimmed.replace(/\s+/g, '').toUpperCase()
+      })
+      
+      if (doubleCheck) {
+        return doubleCheck // Счет уже существует, возвращаем его
+      }
+      
       const { bankName, accountType } = detectBankByIIK(iikTrimmed)
       
       // Создаем новый счет
@@ -246,30 +258,27 @@ export function StatementImport() {
         accountNumber: iikTrimmed,
       }
       
-      console.log(`📝 Автоматически создан счет: ${newAccount.name} (${iikTrimmed})`)
-      addAccount(newAccount)
-      
-      // После создания счета ищем его в обновленном списке
-      // addAccount синхронно обновляет accounts через setState
-      // Подождем немного и попробуем найти созданный счет
-      const createdAccount = accounts.find(account => 
-        account.accountNumber?.replace(/\s+/g, '') === iikTrimmed.replace(/\s+/g, '')
-      )
-      
-      if (createdAccount) {
+      try {
+        console.log(`📝 Автоматически создан счет: ${newAccount.name} (${iikTrimmed})`)
+        const createdAccount = addAccount(newAccount)
+        
+        // Возвращаем созданный счет
         return createdAccount
-      }
-      
-      // Если счет еще не найден, возвращаем базовую структуру
-      // Счет будет найден при следующем вызове функции
-      return {
-        id: `temp-${iikTrimmed}`,
-        name: newAccount.name,
-        type: newAccount.type,
-        balance: 0,
-        currency: "KZT",
-        accountNumber: iikTrimmed,
-        createdAt: new Date().toISOString()
+      } catch (error: any) {
+        // Если счет уже существует (ошибка уникальности), ищем его
+        console.warn(`⚠️ ${error.message}, ищем существующий счет...`)
+        const existingAccount = accounts.find(account => {
+          if (!account.accountNumber) return false
+          const normalized = account.accountNumber.replace(/\s+/g, '').toUpperCase()
+          return normalized === iikTrimmed.replace(/\s+/g, '').toUpperCase()
+        })
+        
+        if (existingAccount) {
+          return existingAccount
+        }
+        
+        // Если не нашли - возвращаем null
+        return null
       }
     }
     
