@@ -30,10 +30,11 @@ export function calculateDashboardMetrics(
 }
 
 export function formatCurrency(amount: number, currency = "KZT"): string {
+  const sign = amount < 0 ? "-" : ""
   const formatted = Math.abs(amount)
     .toFixed(0)
     .replace(/\B(?=(\d{3})+(?!\d))/g, " ")
-  return `${formatted} ${currency}`
+  return `${sign}${formatted} ${currency}`
 }
 
 export function formatDate(date: string): string {
