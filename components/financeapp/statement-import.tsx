@@ -746,27 +746,27 @@ export function StatementImport() {
       setStatus('success')
       
       // Формируем сообщение об успешном импорте
-      // Не показываем "Импортировано 0 операций" если нет счетов и транзакций не было импортировано
-      if (txs.length === 0 && skippedTransactions.size > 0) {
-        // Если нет импортированных транзакций, но есть пропущенные - показываем только предупреждение
-        let warningMessage = `⚠️ Не удалось импортировать операции`
-        
+      // Если не было импортировано ни одной транзакции и есть пропущенные из-за отсутствия счетов
+      if (txs.length === 0) {
         if (skippedTransactions.size > 0) {
-          warningMessage += `\n\nПропущено операций (счет не найден): ${skippedTransactions.size}`
-          warningMessage += `\n\nДля продолжения импорта необходимо добавить счета в систему.`
+          // Если нет счетов - показываем сообщение "Повторите попытку"
+          setMessage(`⚠️ Не удалось импортировать операции\n\nПропущено операций (счет не найден): ${skippedTransactions.size}\n\nДля продолжения импорта необходимо добавить счета в систему.\n\nПовторите попытку после добавления счетов.`)
+        } else if (duplicateTransactions.size > 0 || duplicateCount > 0) {
+          // Если только дубликаты
+          let message = `⚠️ Не удалось импортировать операции`
+          if (duplicateTransactions.size > 0) {
+            message += `\n\n⚠️ Пропущено дубликатов: ${duplicateTransactions.size}`
+          }
+          if (duplicateCount > 0) {
+            message += `\n\n🔄 Пропущено дубликатов: ${duplicateCount}`
+          }
+          setMessage(message)
+        } else {
+          // Если вообще ничего не найдено
+          setMessage(`⚠️ Не удалось найти операции для импорта\n\nПовторите попытку.`)
         }
-        
-        if (duplicateTransactions.size > 0) {
-          warningMessage += `\n\n⚠️ Пропущено дубликатов: ${duplicateTransactions.size}`
-        }
-        
-        if (duplicateCount > 0) {
-          warningMessage += `\n\n🔄 Пропущено дубликатов: ${duplicateCount}`
-        }
-        
-        setMessage(warningMessage)
       } else {
-        // Обычное сообщение об успешном импорте
+        // Обычное сообщение об успешном импорте (только если есть импортированные транзакции)
         let successMessage = `Импортировано ${txs.length} операций`
         
         if (detectedAccounts.size > 0) {
