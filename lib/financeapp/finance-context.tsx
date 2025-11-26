@@ -64,22 +64,33 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [accounts, categories, counterparties, projects, transactions, invoices])
 
   const addAccount = (account: Omit<Account, "id" | "createdAt">) => {
-    // Проверяем уникальность номера счета, если он указан
-    if (account.accountNumber) {
-      const normalizedAccountNumber = account.accountNumber.trim().replace(/\s+/g, '')
-      const existingAccount = accounts.find(a => {
-        if (!a.accountNumber) return false
-        const normalizedExisting = a.accountNumber.trim().replace(/\s+/g, '')
-        return normalizedExisting === normalizedAccountNumber
-      })
-      
-      if (existingAccount) {
-        throw new Error(`Счет с номером ${account.accountNumber} уже существует`)
+    // Используем функциональное обновление для проверки уникальности на актуальном состоянии
+    let newAccount: Account | null = null
+    
+    setAccounts((prev) => {
+      // Проверяем уникальность номера счета на актуальном состоянии
+      if (account.accountNumber) {
+        const normalizedAccountNumber = account.accountNumber.trim().replace(/\s+/g, '').toUpperCase()
+        const existingAccount = prev.find(a => {
+          if (!a.accountNumber) return false
+          const normalizedExisting = a.accountNumber.trim().replace(/\s+/g, '').toUpperCase()
+          return normalizedExisting === normalizedAccountNumber
+        })
+        
+        if (existingAccount) {
+          throw new Error(`Счет с номером ${account.accountNumber} уже существует`)
+        }
       }
+      
+      // Создаем новый счет только если проверка прошла
+      newAccount = { ...account, id: generateId(), createdAt: new Date().toISOString() }
+      return [...prev, newAccount]
+    })
+    
+    if (!newAccount) {
+      throw new Error("Не удалось создать счет")
     }
     
-    const newAccount: Account = { ...account, id: generateId(), createdAt: new Date().toISOString() }
-    setAccounts((prev) => [...prev, newAccount])
     return newAccount
   }
 

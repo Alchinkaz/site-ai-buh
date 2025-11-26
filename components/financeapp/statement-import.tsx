@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,8 @@ export function StatementImport() {
 
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
+  // Ref для отслеживания созданных счетов в рамках одной сессии парсинга
+  const createdAccountsRef = useRef<Set<string>>(new Set())
   const [selectedAccountId, setSelectedAccountId] = useState("")
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
@@ -207,10 +209,38 @@ export function StatementImport() {
 
   // Функция для поиска счета по ИИК (возвращает объект счета)
   // Автоматически создает счет, если его нет
-  function findAccountByIIK(accountIIK: string, autoCreate: boolean = true): any | null {
+  // processedIIKs - кэш обработанных ИИК для избежания дубликатов
+  function findAccountByIIK(accountIIK: string, autoCreate: boolean = true, processedIIKs?: Set<string>): any | null {
     if (!accountIIK || accountIIK.trim() === '') return null
     
     const iikTrimmed = accountIIK.trim()
+    const iikNormalized = iikTrimmed.replace(/\s+/g, '').toUpperCase()
+    
+    // Проверяем ref - если счет уже был создан в этой сессии, не создаем повторно
+    if (createdAccountsRef.current.has(iikNormalized)) {
+      // Ищем счет в текущем списке (он должен быть уже создан)
+      const cachedAccount = accounts.find(account => {
+        if (!account.accountNumber) return false
+        const normalized = account.accountNumber.replace(/\s+/g, '').toUpperCase()
+        return normalized === iikNormalized
+      })
+      if (cachedAccount) {
+        return cachedAccount
+      }
+    }
+    
+    // Проверяем кэш обработанных ИИК
+    if (processedIIKs && processedIIKs.has(iikNormalized)) {
+      // ИИК уже обрабатывался, ищем счет в текущем списке
+      const cachedAccount = accounts.find(account => {
+        if (!account.accountNumber) return false
+        const normalized = account.accountNumber.replace(/\s+/g, '').toUpperCase()
+        return normalized === iikNormalized
+      })
+      if (cachedAccount) {
+        return cachedAccount
+      }
+    }
     
     // Ищем счет с соответствующим номером счета (ИИК)
     const matchingAccount = accounts.find(account => {
@@ -228,24 +258,51 @@ export function StatementImport() {
       return accountNumber === iikClean
     })
     
-    // Если счет найден, возвращаем его
+    // Если счет найден, добавляем в кэш и возвращаем
     if (matchingAccount) {
+      if (processedIIKs) {
+        processedIIKs.add(iikNormalized)
+      }
       return matchingAccount
     }
     
     // Если счет не найден и включено автсоздание - создаем новый счет
     if (autoCreate && iikTrimmed.toUpperCase() !== 'CASH') {
+      // Проверяем кэш - если уже обрабатывали этот ИИК, не создаем повторно
+      if (processedIIKs && processedIIKs.has(iikNormalized)) {
+        // Уже обрабатывали, но счет не найден - возможно еще не успел добавиться
+        // Ищем еще раз (возможно, счет был добавлен между вызовами)
+        const retryAccount = accounts.find(account => {
+          if (!account.accountNumber) return false
+          const normalized = account.accountNumber.replace(/\s+/g, '').toUpperCase()
+          return normalized === iikNormalized
+        })
+        if (retryAccount) {
+          return retryAccount
+        }
+        // Если все еще не найден - возвращаем null (не создаем дубликат)
+        // Кэш уже содержит этот ИИК, значит мы уже пытались его создать
+        return null
+      }
+      
       // Дополнительная проверка: убеждаемся, что счет действительно не существует
-      // (на случай, если он был добавлен в другом потоке)
+      // (на случай, если он был добавлен между проверками)
       const doubleCheck = accounts.find(account => {
         if (!account.accountNumber) return false
         const normalized = account.accountNumber.replace(/\s+/g, '').toUpperCase()
-        return normalized === iikTrimmed.replace(/\s+/g, '').toUpperCase()
+        return normalized === iikNormalized
       })
       
       if (doubleCheck) {
-        return doubleCheck // Счет уже существует, возвращаем его
+        // Счет уже существует, добавляем в кэш и возвращаем
+        if (processedIIKs) {
+          processedIIKs.add(iikNormalized)
+        }
+        return doubleCheck
       }
+      
+      // НЕ добавляем в кэш ПЕРЕД созданием - только после успешного создания
+      // Это позволит повторно попытаться найти счет, если он был создан в другом месте
       
       const { bankName, accountType } = detectBankByIIK(iikTrimmed)
       
@@ -262,22 +319,41 @@ export function StatementImport() {
         console.log(`📝 Автоматически создан счет: ${newAccount.name} (${iikTrimmed})`)
         const createdAccount = addAccount(newAccount)
         
+        // Добавляем в ref и кэш только после успешного создания
+        createdAccountsRef.current.add(iikNormalized)
+        if (processedIIKs) {
+          processedIIKs.add(iikNormalized)
+        }
+        
         // Возвращаем созданный счет
         return createdAccount
       } catch (error: any) {
         // Если счет уже существует (ошибка уникальности), ищем его
         console.warn(`⚠️ ${error.message}, ищем существующий счет...`)
+        
+        // Ищем счет еще раз (возможно, он был добавлен между проверками)
         const existingAccount = accounts.find(account => {
           if (!account.accountNumber) return false
           const normalized = account.accountNumber.replace(/\s+/g, '').toUpperCase()
-          return normalized === iikTrimmed.replace(/\s+/g, '').toUpperCase()
+          return normalized === iikNormalized
         })
         
         if (existingAccount) {
+          // Добавляем в ref и кэш найденный счет
+          createdAccountsRef.current.add(iikNormalized)
+          if (processedIIKs) {
+            processedIIKs.add(iikNormalized)
+          }
           return existingAccount
         }
         
-        // Если не нашли - возвращаем null
+        // Если не нашли - добавляем в ref и кэш, чтобы не пытаться создавать снова
+        // (возможно, счет не может быть создан по какой-то причине)
+        createdAccountsRef.current.add(iikNormalized)
+        if (processedIIKs) {
+          processedIIKs.add(iikNormalized)
+        }
+        
         return null
       }
     }
@@ -314,6 +390,10 @@ export function StatementImport() {
     const results: any[] = []
     const seenTransactions = new Set<string>() // Для отслеживания дубликатов
     const duplicateCount = { count: 0 } // Счетчик дубликатов
+    const processedIIKs = new Set<string>() // Кэш обработанных ИИК для избежания дубликатов счетов
+    
+    // Очищаем ref при начале новой сессии парсинга
+    createdAccountsRef.current.clear()
     
     console.log('🚀 Начинаем парсинг 1CClientBankExchange файла')
     console.log('📊 Доступные счета в системе:', accounts.map(acc => ({ 
@@ -473,17 +553,17 @@ export function StatementImport() {
         const purpose = block.match(/НазначениеПлатежа=(.+)/i)
         const purposeText = purpose?.[1]?.trim() || ''
         
-        // Автоматически определяем счет по ИИК (с автсозданием)
-        const account = findAccountByIIK(accountIIK, true)
+        // Автоматически определяем счет по ИИК (с автсозданием, используя кэш)
+        const account = findAccountByIIK(accountIIK, true, processedIIKs)
         if (!account) {
           console.warn(`⚠️ Не удалось создать или найти счет для ИИК: ${accountIIK}`)
           return
         }
         
-        // Для переводов также определяем счет получателя (с автсозданием)
+        // Для переводов также определяем счет получателя (с автсозданием, используя кэш)
         let toAccount = null
         if (type === 'transfer') {
-          toAccount = findAccountByIIK(toAccountIIK, true)
+          toAccount = findAccountByIIK(toAccountIIK, true, processedIIKs)
           if (!toAccount) {
             console.warn(`⚠️ Не удалось создать или найти счет получателя для ИИК: ${toAccountIIK}`)
             return
