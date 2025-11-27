@@ -1,7 +1,7 @@
 "use client"
 
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import { FinanceProvider, useFinance } from "@/lib/financeapp/finance-context"
 import { formatCurrency, formatDate, maskAccountNumber } from "@/lib/financeapp/finance-utils"
 import { Button } from "@/components/ui/button"
@@ -52,6 +52,69 @@ const AmountCell = ({ amount, currency, type, isNegative = false, disabled = fal
   )
 }
 
+// Компонент для заголовка столбца с возможностью изменения размера
+const ResizableTableHead = ({ 
+  children, 
+  width, 
+  onResize, 
+  minWidth = 50,
+  className = "",
+  ...props 
+}: { 
+  children: React.ReactNode
+  width: number
+  onResize: (width: number) => void
+  minWidth?: number
+  className?: string
+  [key: string]: any
+}) => {
+  const headerRef = useRef<HTMLTableCellElement>(null)
+  const [isResizing, setIsResizing] = useState(false)
+  const startXRef = useRef(0)
+  const startWidthRef = useRef(0)
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const diff = e.clientX - startXRef.current
+    const newWidth = Math.max(minWidth, startWidthRef.current + diff)
+    onResize(newWidth)
+  }, [minWidth, onResize])
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false)
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+  }, [handleMouseMove])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsResizing(true)
+    startXRef.current = e.clientX
+    startWidthRef.current = width
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [width, handleMouseMove, handleMouseUp])
+
+  return (
+    <TableHead
+      ref={headerRef}
+      className={cn("relative select-none", className)}
+      style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+      {...props}
+    >
+      {children}
+      <div
+        className={cn(
+          "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors z-10",
+          isResizing && "bg-primary"
+        )}
+        onMouseDown={handleMouseDown}
+        style={{ userSelect: 'none' }}
+      />
+    </TableHead>
+  )
+}
+
 function AccountDetailInner() {
   const params = useParams()
   const router = useRouter()
@@ -60,6 +123,16 @@ function AccountDetailInner() {
   const [editOpen, setEditOpen] = useState(false)
   const [isEditingBalance, setIsEditingBalance] = useState(false)
   const [balanceValue, setBalanceValue] = useState("")
+  
+  // Состояние для ширины столбцов
+  const [columnWidths, setColumnWidths] = useState({
+    date: 100,
+    type: 80,
+    category: 120,
+    counterparty: 150,
+    amount: 120,
+    comment: 200,
+  })
 
   const account = accounts.find((a) => a.id === id)
   const accountTransactions = transactions
@@ -256,16 +329,53 @@ function AccountDetailInner() {
           ) : (
             <Table
               containerClassName="overflow-y-auto max-h-[600px] overflow-x-hidden"
-              className="w-full"
+              className="w-full table-fixed"
             >
               <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-md [&_tr]:border-b [&_tr]:border-border [&_th]:sticky [&_th]:top-0 [&_th]:z-30 [&_th]:bg-card/95 [&_th]:backdrop-blur [&_th]:h-10 [&_th]:px-2 [&_th]:text-left [&_th]:align-middle [&_th]:font-medium">
                 <TableRow className="bg-card hover:bg-card border-b">
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Тип</TableHead>
-                  <TableHead>Категория</TableHead>
-                  <TableHead>Контрагент</TableHead>
-                  <TableHead className="text-right">Сумма</TableHead>
-                  <TableHead>Комментарий</TableHead>
+                  <ResizableTableHead
+                    width={columnWidths.date}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, date: w }))}
+                    minWidth={70}
+                  >
+                    Дата
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.type}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, type: w }))}
+                    minWidth={60}
+                  >
+                    Тип
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.category}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, category: w }))}
+                    minWidth={80}
+                  >
+                    Категория
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.counterparty}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, counterparty: w }))}
+                    minWidth={100}
+                  >
+                    Контрагент
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.amount}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, amount: w }))}
+                    minWidth={80}
+                    className="text-right"
+                  >
+                    Сумма
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.comment}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, comment: w }))}
+                    minWidth={100}
+                  >
+                    Комментарий
+                  </ResizableTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -277,25 +387,40 @@ function AccountDetailInner() {
                   
                   return (
                     <TableRow key={transaction.id} className="border-b hover:bg-muted/50 transition-colors">
-                      <TableCell className="p-2 align-middle text-xs whitespace-nowrap">
+                      <TableCell 
+                        className="p-2 align-middle text-xs whitespace-nowrap"
+                        style={{ width: `${columnWidths.date}px`, minWidth: `${columnWidths.date}px`, maxWidth: `${columnWidths.date}px` }}
+                      >
                         {new Date(transaction.date).toLocaleDateString('ru-RU', {
                           day: '2-digit',
                           month: '2-digit',
                           year: 'numeric'
                         })}
                       </TableCell>
-                      <TableCell className="p-2 align-middle">
+                      <TableCell 
+                        className="p-2 align-middle"
+                        style={{ width: `${columnWidths.type}px`, minWidth: `${columnWidths.type}px`, maxWidth: `${columnWidths.type}px` }}
+                      >
                         <Badge className={cn("font-medium text-xs px-1 py-0", getBadgeTypeClass(transaction.type))}>
                           {getBadgeTypeLabel(transaction.type)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-xs">
+                      <TableCell 
+                        className="p-2 align-middle text-xs"
+                        style={{ width: `${columnWidths.category}px`, minWidth: `${columnWidths.category}px`, maxWidth: `${columnWidths.category}px` }}
+                      >
                         {category?.name || "-"}
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-xs text-muted-foreground">
+                      <TableCell 
+                        className="p-2 align-middle text-xs text-muted-foreground"
+                        style={{ width: `${columnWidths.counterparty}px`, minWidth: `${columnWidths.counterparty}px`, maxWidth: `${columnWidths.counterparty}px` }}
+                      >
                         <span className="whitespace-nowrap">{counterparty?.name || "-"}</span>
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-right">
+                      <TableCell 
+                        className="p-2 align-middle text-right"
+                        style={{ width: `${columnWidths.amount}px`, minWidth: `${columnWidths.amount}px`, maxWidth: `${columnWidths.amount}px` }}
+                      >
                         <AmountCell 
                           amount={transaction.amount} 
                           currency={transaction.currency}
@@ -303,8 +428,11 @@ function AccountDetailInner() {
                           isNegative={isExpense}
                         />
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-xs text-muted-foreground">
-                        <span className="text-overflow-ellipsis overflow-hidden block max-w-[200px]" title={transaction.comment}>
+                      <TableCell 
+                        className="p-2 align-middle text-xs text-muted-foreground"
+                        style={{ width: `${columnWidths.comment}px`, minWidth: `${columnWidths.comment}px`, maxWidth: `${columnWidths.comment}px` }}
+                      >
+                        <span className="text-overflow-ellipsis overflow-hidden block" title={transaction.comment}>
                           {transaction.comment || "-"}
                         </span>
                       </TableCell>

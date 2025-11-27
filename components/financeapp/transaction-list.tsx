@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useCallback } from "react"
 import { useFinance } from "@/lib/financeapp/finance-context"
 import { formatCurrency, formatDate } from "@/lib/financeapp/finance-utils"
 import { Button } from "@/components/ui/button"
@@ -57,6 +57,72 @@ const AmountCell = ({ amount, currency, type, disabled = false }: {
   )
 }
 
+// Компонент для заголовка столбца с возможностью изменения размера
+const ResizableTableHead = ({ 
+  children, 
+  width, 
+  onResize, 
+  minWidth = 50,
+  className = "",
+  onClick,
+  ...props 
+}: { 
+  children: React.ReactNode
+  width: number
+  onResize: (width: number) => void
+  minWidth?: number
+  className?: string
+  onClick?: () => void
+  [key: string]: any
+}) => {
+  const headerRef = useRef<HTMLTableCellElement>(null)
+  const [isResizing, setIsResizing] = useState(false)
+  const startXRef = useRef(0)
+  const startWidthRef = useRef(0)
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const diff = e.clientX - startXRef.current
+    const newWidth = Math.max(minWidth, startWidthRef.current + diff)
+    onResize(newWidth)
+  }, [minWidth, onResize])
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false)
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+  }, [handleMouseMove])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsResizing(true)
+    startXRef.current = e.clientX
+    startWidthRef.current = width
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [width, handleMouseMove, handleMouseUp])
+
+  return (
+    <TableHead
+      ref={headerRef}
+      className={cn("relative select-none", className)}
+      style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+      onClick={onClick}
+      {...props}
+    >
+      {children}
+      <div
+        className={cn(
+          "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors z-10",
+          isResizing && "bg-primary"
+        )}
+        onMouseDown={handleMouseDown}
+        style={{ userSelect: 'none' }}
+      />
+    </TableHead>
+  )
+}
+
 export function TransactionList() {
   const { transactions, accounts, categories, counterparties, deleteTransaction, updateTransaction } = useFinance()
   const [searchTerm, setSearchTerm] = useState("")
@@ -81,6 +147,18 @@ export function TransactionList() {
   // Состояние для сортировки
   const [sortColumn, setSortColumn] = useState<string>("date")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+
+  // Состояние для ширины столбцов
+  const [columnWidths, setColumnWidths] = useState({
+    checkbox: 50,
+    date: 90,
+    type: 80,
+    category: 120,
+    account: 140,
+    counterparty: 120,
+    amount: 100,
+    comment: 150,
+  })
 
   // Функция сортировки транзакций
   const sortTransactions = (transactions: any[], column: string, direction: "asc" | "desc") => {
@@ -491,18 +569,25 @@ export function TransactionList() {
         ) : (
           <Table
             containerClassName="overflow-y-auto max-h-[600px] overflow-x-hidden"
-            className="w-full"
+            className="w-full table-fixed"
           >
               <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-md [&_tr]:border-b [&_tr]:border-border [&_th]:sticky [&_th]:top-0 [&_th]:z-30 [&_th]:bg-card/95 [&_th]:backdrop-blur [&_th]:h-10 [&_th]:px-2 [&_th]:text-left [&_th]:align-middle [&_th]:font-medium">
                 <TableRow className="bg-card hover:bg-card border-b">
-                  <TableHead className="w-[50px]">
+                  <ResizableTableHead
+                    width={columnWidths.checkbox}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, checkbox: w }))}
+                    minWidth={40}
+                  >
                     <Checkbox
                       checked={selectedTransactions.size === filteredTransactions.length && filteredTransactions.length > 0}
                       onCheckedChange={handleSelectAll}
                     />
-                  </TableHead>
-                  <TableHead 
-                    className="w-[90px] cursor-pointer hover:bg-muted select-none" 
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.date}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, date: w }))}
+                    minWidth={70}
+                    className="cursor-pointer hover:bg-muted select-none"
                     onClick={() => handleSort("date")}
                   >
                     <div className="flex items-center gap-1">
@@ -511,9 +596,12 @@ export function TransactionList() {
                         sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                       )}
                     </div>
-                  </TableHead>
-                  <TableHead 
-                    className="w-[80px] cursor-pointer hover:bg-muted select-none" 
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.type}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, type: w }))}
+                    minWidth={60}
+                    className="cursor-pointer hover:bg-muted select-none"
                     onClick={() => handleSort("type")}
                   >
                     <div className="flex items-center gap-1">
@@ -522,9 +610,12 @@ export function TransactionList() {
                         sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                       )}
                     </div>
-                  </TableHead>
-                  <TableHead 
-                    className="w-[120px] cursor-pointer hover:bg-muted select-none" 
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.category}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, category: w }))}
+                    minWidth={80}
+                    className="cursor-pointer hover:bg-muted select-none"
                     onClick={() => handleSort("category")}
                   >
                     <div className="flex items-center gap-1">
@@ -533,9 +624,12 @@ export function TransactionList() {
                         sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                       )}
                     </div>
-                  </TableHead>
-                  <TableHead 
-                    className="w-[140px] cursor-pointer hover:bg-muted select-none" 
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.account}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, account: w }))}
+                    minWidth={100}
+                    className="cursor-pointer hover:bg-muted select-none"
                     onClick={() => handleSort("account")}
                   >
                     <div className="flex items-center gap-1">
@@ -544,9 +638,12 @@ export function TransactionList() {
                         sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                       )}
                     </div>
-                  </TableHead>
-                  <TableHead 
-                    className="w-[120px] cursor-pointer hover:bg-muted select-none" 
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.counterparty}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, counterparty: w }))}
+                    minWidth={80}
+                    className="cursor-pointer hover:bg-muted select-none"
                     onClick={() => handleSort("counterparty")}
                   >
                     <div className="flex items-center gap-1">
@@ -555,9 +652,12 @@ export function TransactionList() {
                         sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                       )}
                     </div>
-                  </TableHead>
-                  <TableHead 
-                    className="w-[100px] text-right cursor-pointer hover:bg-muted select-none" 
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.amount}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, amount: w }))}
+                    minWidth={80}
+                    className="text-right cursor-pointer hover:bg-muted select-none"
                     onClick={() => handleSort("amount")}
                   >
                     <div className="flex items-center justify-end gap-1">
@@ -566,9 +666,12 @@ export function TransactionList() {
                         sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                       )}
                     </div>
-                  </TableHead>
-                  <TableHead 
-                    className="w-[150px] cursor-pointer hover:bg-muted select-none" 
+                  </ResizableTableHead>
+                  <ResizableTableHead
+                    width={columnWidths.comment}
+                    onResize={(w) => setColumnWidths(prev => ({ ...prev, comment: w }))}
+                    minWidth={100}
+                    className="cursor-pointer hover:bg-muted select-none"
                     onClick={() => handleSort("comment")}
                   >
                     <div className="flex items-center gap-1">
@@ -577,7 +680,7 @@ export function TransactionList() {
                         sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
                       )}
                     </div>
-                  </TableHead>
+                  </ResizableTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -595,25 +698,38 @@ export function TransactionList() {
                       className="cursor-pointer hover:bg-muted/50 transition-colors border-b"
                       onClick={() => handleEdit(transaction)}
                     >
-                      <TableCell className="p-2 align-middle [&:has([role=checkbox])]:pr-0" onClick={(e) => e.stopPropagation()}>
+                      <TableCell 
+                        className="p-2 align-middle [&:has([role=checkbox])]:pr-0" 
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: `${columnWidths.checkbox}px`, minWidth: `${columnWidths.checkbox}px`, maxWidth: `${columnWidths.checkbox}px` }}
+                      >
                         <Checkbox
                           checked={selectedTransactions.has(transaction.id)}
                           onCheckedChange={(checked) => handleSelectTransaction(transaction.id, checked as boolean)}
                         />
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-xs whitespace-nowrap">
+                      <TableCell 
+                        className="p-2 align-middle text-xs whitespace-nowrap"
+                        style={{ width: `${columnWidths.date}px`, minWidth: `${columnWidths.date}px`, maxWidth: `${columnWidths.date}px` }}
+                      >
                         {new Date(transaction.date).toLocaleDateString('ru-RU', {
                           day: '2-digit',
                           month: '2-digit',
                           year: 'numeric'
                         })}
                       </TableCell>
-                      <TableCell className="p-2 align-middle">
+                      <TableCell 
+                        className="p-2 align-middle"
+                        style={{ width: `${columnWidths.type}px`, minWidth: `${columnWidths.type}px`, maxWidth: `${columnWidths.type}px` }}
+                      >
                         <Badge className={cn("font-medium text-xs px-1 py-0", getTypeColor(transaction.type))}>
                           {getTypeLabel(transaction.type)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="p-2 align-middle">
+                      <TableCell 
+                        className="p-2 align-middle"
+                        style={{ width: `${columnWidths.category}px`, minWidth: `${columnWidths.category}px`, maxWidth: `${columnWidths.category}px` }}
+                      >
                         {category && transaction.type !== "transfer" ? (
                           <div className="flex items-center gap-1">
                             <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
@@ -623,7 +739,10 @@ export function TransactionList() {
                           <span className="text-xs">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="p-2 align-middle">
+                      <TableCell 
+                        className="p-2 align-middle"
+                        style={{ width: `${columnWidths.account}px`, minWidth: `${columnWidths.account}px`, maxWidth: `${columnWidths.account}px` }}
+                      >
                         {transaction.type === "transfer" && toAccount ? (
                           <div className="text-xs">
                             <div className="font-medium whitespace-nowrap" title={account?.name}>{truncateText(account?.name || "-", 12)}</div>
@@ -634,17 +753,26 @@ export function TransactionList() {
                           <span className="text-xs whitespace-nowrap" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-muted-foreground text-xs">
+                      <TableCell 
+                        className="p-2 align-middle text-muted-foreground text-xs"
+                        style={{ width: `${columnWidths.counterparty}px`, minWidth: `${columnWidths.counterparty}px`, maxWidth: `${columnWidths.counterparty}px` }}
+                      >
                         <span className="whitespace-nowrap" title={counterparty?.name}>{truncateText(counterparty?.name || "-", 15)}</span>
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-right">
+                      <TableCell 
+                        className="p-2 align-middle text-right"
+                        style={{ width: `${columnWidths.amount}px`, minWidth: `${columnWidths.amount}px`, maxWidth: `${columnWidths.amount}px` }}
+                      >
                         <AmountCell 
                           amount={transaction.amount} 
                           currency={transaction.currency}
                           type={transaction.type}
                         />
                       </TableCell>
-                      <TableCell className="p-2 align-middle text-xs text-muted-foreground">
+                      <TableCell 
+                        className="p-2 align-middle text-xs text-muted-foreground"
+                        style={{ width: `${columnWidths.comment}px`, minWidth: `${columnWidths.comment}px`, maxWidth: `${columnWidths.comment}px` }}
+                      >
                         <span className="text-overflow-ellipsis overflow-hidden block" title={transaction.comment}>{truncateText(transaction.comment || "-", 20)}</span>
                       </TableCell>
                     </TableRow>
