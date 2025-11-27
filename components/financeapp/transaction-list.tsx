@@ -459,7 +459,7 @@ export function TransactionList() {
             className="table-fixed w-full"
           >
               <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-sm [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-card">
-                <TableRow>
+                <TableRow className="bg-card hover:bg-card">
                   <TableHead className="w-[50px]">
                     <Checkbox
                       checked={selectedTransactions.size === filteredTransactions.length && filteredTransactions.length > 0}
