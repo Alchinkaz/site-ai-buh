@@ -467,7 +467,7 @@ export function TransactionList() {
                     />
                   </TableHead>
                   <TableHead 
-                    className="w-[90px] cursor-pointer hover:bg-muted/50 select-none" 
+                    className="w-[90px] cursor-pointer hover:bg-muted select-none" 
                     onClick={() => handleSort("date")}
                   >
                     <div className="flex items-center gap-1">
@@ -478,7 +478,7 @@ export function TransactionList() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="w-[80px] cursor-pointer hover:bg-muted/50 select-none" 
+                    className="w-[80px] cursor-pointer hover:bg-muted select-none" 
                     onClick={() => handleSort("type")}
                   >
                     <div className="flex items-center gap-1">
@@ -489,7 +489,7 @@ export function TransactionList() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="w-[120px] cursor-pointer hover:bg-muted/50 select-none" 
+                    className="w-[120px] cursor-pointer hover:bg-muted select-none" 
                     onClick={() => handleSort("category")}
                   >
                     <div className="flex items-center gap-1">
@@ -500,7 +500,7 @@ export function TransactionList() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="w-[140px] cursor-pointer hover:bg-muted/50 select-none" 
+                    className="w-[140px] cursor-pointer hover:bg-muted select-none" 
                     onClick={() => handleSort("account")}
                   >
                     <div className="flex items-center gap-1">
@@ -511,7 +511,7 @@ export function TransactionList() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="w-[120px] cursor-pointer hover:bg-muted/50 select-none" 
+                    className="w-[120px] cursor-pointer hover:bg-muted select-none" 
                     onClick={() => handleSort("counterparty")}
                   >
                     <div className="flex items-center gap-1">
@@ -522,7 +522,7 @@ export function TransactionList() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="w-[100px] text-right cursor-pointer hover:bg-muted/50 select-none" 
+                    className="w-[100px] text-right cursor-pointer hover:bg-muted select-none" 
                     onClick={() => handleSort("amount")}
                   >
                     <div className="flex items-center justify-end gap-1">
@@ -533,7 +533,7 @@ export function TransactionList() {
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="w-[150px] cursor-pointer hover:bg-muted/50 select-none" 
+                    className="w-[150px] cursor-pointer hover:bg-muted select-none" 
                     onClick={() => handleSort("comment")}
                   >
                     <div className="flex items-center gap-1">
