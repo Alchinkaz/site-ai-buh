@@ -456,7 +456,7 @@ export function TransactionList() {
         ) : (
           <div className="overflow-y-auto max-h-[600px] overflow-x-hidden">
             <Table className="table-fixed w-full">
-              <TableHeader>
+              <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-sm [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-card">
                 <TableRow>
                   <TableHead className="w-[50px]">
                     <Checkbox
