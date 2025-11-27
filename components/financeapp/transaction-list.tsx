@@ -458,7 +458,7 @@ export function TransactionList() {
             containerClassName="overflow-y-auto max-h-[600px] overflow-x-hidden"
             className="table-fixed w-full"
           >
-              <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-sm [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-card">
+              <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-md [&_tr]:border-b [&_tr]:border-border [&_th]:sticky [&_th]:top-0 [&_th]:z-30 [&_th]:bg-card/95 [&_th]:backdrop-blur">
                 <TableRow className="bg-card hover:bg-card">
                   <TableHead className="w-[50px]">
                     <Checkbox
