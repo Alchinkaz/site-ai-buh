@@ -22,6 +22,41 @@ const truncateText = (text: string, maxLength: number = 30) => {
   return text.substring(0, maxLength) + "..."
 }
 
+// Форматирование чисел как в Admiral Design System
+const numberFormatter = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+})
+
+// Компонент для ячейки суммы с правильным форматированием
+const AmountCell = ({ amount, currency, type, disabled = false }: { 
+  amount: number
+  currency?: string
+  type: string
+  disabled?: boolean
+}) => {
+  const formattedAmount = numberFormatter.format(amount)
+  const isNegative = type === "expense"
+  
+  return (
+    <div 
+      className={cn(
+        "text-right font-semibold tabular-nums text-xs",
+        "text-overflow-ellipsis overflow-hidden",
+        {
+          "text-green-600 dark:text-green-400": type === "income",
+          "text-red-600 dark:text-red-400": type === "expense",
+          "text-blue-600 dark:text-blue-400": type === "transfer",
+          "opacity-50": disabled,
+        }
+      )}
+    >
+      {isNegative && "-"}
+      {formattedAmount} {currency || "KZT"}
+    </div>
+  )
+}
+
 export function TransactionList() {
   const { transactions, accounts, categories, counterparties, deleteTransaction, updateTransaction } = useFinance()
   const [searchTerm, setSearchTerm] = useState("")
@@ -456,10 +491,10 @@ export function TransactionList() {
         ) : (
           <Table
             containerClassName="overflow-y-auto max-h-[600px] overflow-x-hidden"
-            className="table-fixed w-full"
+            className="w-full"
           >
-              <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-md [&_tr]:border-b [&_tr]:border-border [&_th]:sticky [&_th]:top-0 [&_th]:z-30 [&_th]:bg-card/95 [&_th]:backdrop-blur">
-                <TableRow className="bg-card hover:bg-card">
+              <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-md [&_tr]:border-b [&_tr]:border-border [&_th]:sticky [&_th]:top-0 [&_th]:z-30 [&_th]:bg-card/95 [&_th]:backdrop-blur [&_th]:h-10 [&_th]:px-2 [&_th]:text-left [&_th]:align-middle [&_th]:font-medium">
+                <TableRow className="bg-card hover:bg-card border-b">
                   <TableHead className="w-[50px]">
                     <Checkbox
                       checked={selectedTransactions.size === filteredTransactions.length && filteredTransactions.length > 0}
@@ -557,57 +592,60 @@ export function TransactionList() {
                   return (
                     <TableRow 
                       key={transaction.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      className="cursor-pointer hover:bg-muted/50 transition-colors border-b"
                       onClick={() => handleEdit(transaction)}
                     >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="p-2 align-middle [&:has([role=checkbox])]:pr-0" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedTransactions.has(transaction.id)}
                           onCheckedChange={(checked) => handleSelectTransaction(transaction.id, checked as boolean)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-xs">{formatDate(transaction.date)}</TableCell>
-                      <TableCell>
+                      <TableCell className="p-2 align-middle text-xs whitespace-nowrap">
+                        {new Date(transaction.date).toLocaleDateString('ru-RU', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })}
+                      </TableCell>
+                      <TableCell className="p-2 align-middle">
                         <Badge className={cn("font-medium text-xs px-1 py-0", getTypeColor(transaction.type))}>
                           {getTypeLabel(transaction.type)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="p-2 align-middle">
                         {category && transaction.type !== "transfer" ? (
                           <div className="flex items-center gap-1">
                             <div className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
-                            <span className="text-xs" title={category.name}>{truncateText(category.name, 15)}</span>
+                            <span className="text-xs whitespace-nowrap" title={category.name}>{truncateText(category.name, 15)}</span>
                           </div>
                         ) : (
-                          "-"
+                          <span className="text-xs">-</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="p-2 align-middle">
                         {transaction.type === "transfer" && toAccount ? (
                           <div className="text-xs">
-                            <div className="font-medium" title={account?.name}>{truncateText(account?.name || "-", 12)}</div>
+                            <div className="font-medium whitespace-nowrap" title={account?.name}>{truncateText(account?.name || "-", 12)}</div>
                             <div className="text-center text-muted-foreground">→</div>
-                            <div className="font-medium" title={toAccount.name}>{truncateText(toAccount.name, 12)}</div>
+                            <div className="font-medium whitespace-nowrap" title={toAccount.name}>{truncateText(toAccount.name, 12)}</div>
                           </div>
                         ) : (
-                          <span className="text-xs" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
+                          <span className="text-xs whitespace-nowrap" title={account?.name}>{truncateText(account?.name || "-", 15)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        <span title={counterparty?.name}>{truncateText(counterparty?.name || "-", 15)}</span>
+                      <TableCell className="p-2 align-middle text-muted-foreground text-xs">
+                        <span className="whitespace-nowrap" title={counterparty?.name}>{truncateText(counterparty?.name || "-", 15)}</span>
                       </TableCell>
-                      <TableCell
-                        className={cn("text-right font-semibold tabular-nums text-xs", {
-                          "text-green-600 dark:text-green-400": transaction.type === "income",
-                          "text-red-600 dark:text-red-400": transaction.type === "expense",
-                          "text-blue-600 dark:text-blue-400": transaction.type === "transfer",
-                        })}
-                      >
-                        {transaction.type === "expense" && "-"}
-                        {formatCurrency(transaction.amount, transaction.currency)}
+                      <TableCell className="p-2 align-middle text-right">
+                        <AmountCell 
+                          amount={transaction.amount} 
+                          currency={transaction.currency}
+                          type={transaction.type}
+                        />
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        <span title={transaction.comment}>{truncateText(transaction.comment || "-", 20)}</span>
+                      <TableCell className="p-2 align-middle text-xs text-muted-foreground">
+                        <span className="text-overflow-ellipsis overflow-hidden block" title={transaction.comment}>{truncateText(transaction.comment || "-", 20)}</span>
                       </TableCell>
                     </TableRow>
                   )
