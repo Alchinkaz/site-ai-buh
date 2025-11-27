@@ -17,6 +17,41 @@ import { cn } from "@/lib/utils"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 
+// Форматирование чисел как в Admiral Design System
+const numberFormatter = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+})
+
+// Компонент для ячейки суммы с правильным форматированием
+const AmountCell = ({ amount, currency, type, isNegative = false, disabled = false }: { 
+  amount: number
+  currency?: string
+  type: string
+  isNegative?: boolean
+  disabled?: boolean
+}) => {
+  const formattedAmount = numberFormatter.format(amount)
+  
+  return (
+    <div 
+      className={cn(
+        "text-right font-semibold tabular-nums text-xs",
+        "text-overflow-ellipsis overflow-hidden",
+        {
+          "text-green-600 dark:text-green-400": type === "income",
+          "text-red-600 dark:text-red-400": type === "expense" || isNegative,
+          "text-blue-600 dark:text-blue-400": type === "transfer",
+          "opacity-50": disabled,
+        }
+      )}
+    >
+      {isNegative && "-"}
+      {formattedAmount} {currency || "KZT"}
+    </div>
+  )
+}
+
 function AccountDetailInner() {
   const params = useParams()
   const router = useRouter()
@@ -219,44 +254,65 @@ function AccountDetailInner() {
           {accountTransactions.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">Нет транзакций по этому счёту</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Дата</TableHead>
-                    <TableHead>Тип</TableHead>
-                    <TableHead>Категория</TableHead>
-                    <TableHead>Контрагент</TableHead>
-                    <TableHead className="text-right">Сумма</TableHead>
-                    <TableHead>Комментарий</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {accountTransactions.map((transaction) => {
-                    const category = categories.find((c) => c.id === transaction.categoryId)
-                    const counterparty = counterparties.find((cp) => cp.id === transaction.counterpartyId)
-                    return (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="whitespace-nowrap">{formatDate(transaction.date)}</TableCell>
-                        <TableCell>
-                          <Badge className={cn("font-medium", getBadgeTypeClass(transaction.type))}>{getBadgeTypeLabel(transaction.type)}</Badge>
-                        </TableCell>
-                        <TableCell>{category?.name || "-"}</TableCell>
-                        <TableCell>{counterparty?.name || "-"}</TableCell>
-                        <TableCell className={cn("text-right font-semibold", { 
-                          "text-green-600 dark:text-green-400": transaction.type === "income" || (transaction.type === "transfer" && transaction.toAccountId === id), 
-                          "text-red-600 dark:text-red-400": transaction.type === "expense" || (transaction.type === "transfer" && transaction.accountId === id) 
-                        })}>
-                          {(transaction.type === "expense" || (transaction.type === "transfer" && transaction.accountId === id)) && "-"}
-                          {formatCurrency(transaction.amount, transaction.currency)}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{transaction.comment || "-"}</TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <Table
+              containerClassName="overflow-y-auto max-h-[600px] overflow-x-hidden"
+              className="w-full"
+            >
+              <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-md [&_tr]:border-b [&_tr]:border-border [&_th]:sticky [&_th]:top-0 [&_th]:z-30 [&_th]:bg-card/95 [&_th]:backdrop-blur [&_th]:h-10 [&_th]:px-2 [&_th]:text-left [&_th]:align-middle [&_th]:font-medium">
+                <TableRow className="bg-card hover:bg-card border-b">
+                  <TableHead>Дата</TableHead>
+                  <TableHead>Тип</TableHead>
+                  <TableHead>Категория</TableHead>
+                  <TableHead>Контрагент</TableHead>
+                  <TableHead className="text-right">Сумма</TableHead>
+                  <TableHead>Комментарий</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accountTransactions.map((transaction) => {
+                  const category = categories.find((c) => c.id === transaction.categoryId)
+                  const counterparty = counterparties.find((cp) => cp.id === transaction.counterpartyId)
+                  const isIncome = transaction.type === "income" || (transaction.type === "transfer" && transaction.toAccountId === id)
+                  const isExpense = transaction.type === "expense" || (transaction.type === "transfer" && transaction.accountId === id)
+                  
+                  return (
+                    <TableRow key={transaction.id} className="border-b hover:bg-muted/50 transition-colors">
+                      <TableCell className="p-2 align-middle text-xs whitespace-nowrap">
+                        {new Date(transaction.date).toLocaleDateString('ru-RU', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })}
+                      </TableCell>
+                      <TableCell className="p-2 align-middle">
+                        <Badge className={cn("font-medium text-xs px-1 py-0", getBadgeTypeClass(transaction.type))}>
+                          {getBadgeTypeLabel(transaction.type)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="p-2 align-middle text-xs">
+                        {category?.name || "-"}
+                      </TableCell>
+                      <TableCell className="p-2 align-middle text-xs text-muted-foreground">
+                        <span className="whitespace-nowrap">{counterparty?.name || "-"}</span>
+                      </TableCell>
+                      <TableCell className="p-2 align-middle text-right">
+                        <AmountCell 
+                          amount={transaction.amount} 
+                          currency={transaction.currency}
+                          type={isIncome ? "income" : isExpense ? "expense" : transaction.type}
+                          isNegative={isExpense}
+                        />
+                      </TableCell>
+                      <TableCell className="p-2 align-middle text-xs text-muted-foreground">
+                        <span className="text-overflow-ellipsis overflow-hidden block max-w-[200px]" title={transaction.comment}>
+                          {transaction.comment || "-"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
