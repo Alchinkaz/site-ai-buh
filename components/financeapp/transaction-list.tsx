@@ -454,8 +454,10 @@ export function TransactionList() {
             </p>
           </div>
         ) : (
-          <div className="overflow-y-auto max-h-[600px] overflow-x-hidden">
-            <Table className="table-fixed w-full">
+          <Table
+            containerClassName="overflow-y-auto max-h-[600px] overflow-x-hidden"
+            className="table-fixed w-full"
+          >
               <TableHeader className="[&_tr]:bg-card [&_tr]:shadow-sm [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-card">
                 <TableRow>
                   <TableHead className="w-[50px]">
@@ -612,7 +614,6 @@ export function TransactionList() {
                 })}
               </TableBody>
             </Table>
-          </div>
         )}
         
         {/* Пагинация */}
